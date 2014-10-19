@@ -1,0 +1,16 @@
+(namespace 
+ ("ssrun#"
+  current-build-directory
+  current-source-directory
+  current-lib-directory
+  current-bin-directory
+  current-project-name
+  current-module-name
+  log
+  info
+  info/color
+  warn 
+  err
+  generate-c-file
+  ssrun
+  ))
