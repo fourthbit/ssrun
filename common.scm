@@ -1,6 +1,5 @@
-;-------------------------------------------------------------------------------
-; Parameters and globals
-;-------------------------------------------------------------------------------
+;;-------------------------------------------------------------------------------
+;; Parameters and globals
 
 (define current-build-directory 
   (make-parameter 
@@ -24,9 +23,11 @@
 (define current-module-name
   (make-parameter (current-project-name)))
 
-;-------------------------------------------------------------------------------
-; Output
-;-------------------------------------------------------------------------------
+(define current-tasks-path
+  (make-parameter "~~lib/ssrun/tasks/"))
+
+;;-------------------------------------------------------------------------------
+;; Output
 
 (define (log type . message)
   (display "*** ")
@@ -72,20 +73,18 @@
   (display "\033[00m")
   (error "ssrun error, aborting"))
 
-;-------------------------------------------------------------------------------
-; Util
-;-------------------------------------------------------------------------------
+;;-------------------------------------------------------------------------------
+;; Util
 
 (##include "tiny.scm")
 
-;-------------------------------------------------------------------------------
-; Main
-;-------------------------------------------------------------------------------
+;;-------------------------------------------------------------------------------
+;; Main
 
 (define (ssrun #!key 
-              (file "ssrunfile.scm")
-              (tasks '(all))
-              (extensions #t))
+               (file "ssrunfile.scm")
+               (tasks '(all))
+               (extensions #t))
   (let* ((file (path-expand file))
          (dir (path-directory file)))
     (info "entering directory " dir)
@@ -94,48 +93,44 @@
                             (if (string=? dir (current-directory))
                                 "current directory."
                                 dir))))
-    (let* ((prelude-file "~~spheres/spheres.scm")
-           (extensions-directory "~~spheres/ssrun-extensions/src/"))
-      (eval `(begin
-               ;(##namespace (,(string-append (symbol->string (gensym 'ssrunfile)) "#")))
-               ;(##include "~~lib/gambit#.scm")
-               (##include "~~spheres/core/src/ssrun/ssrunlib#.scm")
-               ,(if extensions
-                    (let ((ssrun-extensions (map (lambda (f) (string-append extensions-directory f))
-                                                (directory-files
-                                                 (list path: extensions-directory
-                                                       ignore-hidden: 'dot-and-dot-dot)))))
-                      `(begin (include ,prelude-file)
-                              ,@(map (lambda (e) `(include ,e)) ssrun-extensions))))
-               (##include ,file)
-               ,@(map (lambda (t)
-                        `(with-exception-catcher
-                          (lambda (ex)
-                            (let ((seems-same-symbol?
-                                   (lambda (unmangled mangled)
-                                     (let* ((task unmangled)
-                                            (undefined-variable mangled)
-                                            (undef-str (symbol->string undefined-variable))
-                                            (undef-str-len (string-length undef-str))
-                                            (task-str (symbol->string task))
-                                            (task-str-len (string-length task-str))
-                                            (diff-lengths (- undef-str-len task-str-len)))
-                                       (if (zero? diff-lengths)
-                                           (string=? undef-str task-str)
-                                           (and (> diff-lengths 0)
-                                                (string=? (substring undef-str
-                                                                     diff-lengths
-                                                                     undef-str-len)
-                                                          task-str)
-                                                (char=? #\# (string-ref undef-str (- diff-lengths 1)))))))))
-                              (if (unbound-global-exception? ex)
-                                  (let ((undefined-variable (unbound-global-exception-variable ex)))
+    (eval `(begin
+             (##include "~~lib/ssrun/ssrunlib#.scm")
+             ,(if extensions
+                  (let ((extensions
+                         (map (lambda (f) (string-append (current-tasks-path) f))
+                              (directory-files
+                               (list path: (current-tasks-path)
+                                     ignore-hidden: 'dot-and-dot-dot)))))
+                    `(begin ,@(map (lambda (e) `(include ,e)) extensions))))
+             (##include ,file)
+             ,@(map (lambda (t)
+                      `(with-exception-catcher
+                        (lambda (ex)
+                          (let ((seems-same-symbol?
+                                 (lambda (unmangled mangled)
+                                   (let* ((task unmangled)
+                                          (undefined-variable mangled)
+                                          (undef-str (symbol->string undefined-variable))
+                                          (undef-str-len (string-length undef-str))
+                                          (task-str (symbol->string task))
+                                          (task-str-len (string-length task-str))
+                                          (diff-lengths (- undef-str-len task-str-len)))
+                                     (if (zero? diff-lengths)
+                                         (string=? undef-str task-str)
+                                         (and (> diff-lengths 0)
+                                              (string=? (substring undef-str
+                                                                   diff-lengths
+                                                                   undef-str-len)
+                                                        task-str)
+                                              (char=? #\# (string-ref undef-str (- diff-lengths 1)))))))))
+                            (if (unbound-global-exception? ex)
+                                (let ((undefined-variable (unbound-global-exception-variable ex)))
                                   
-                                    (if (seems-same-symbol? ',t undefined-variable)
-                                        (err ,(string-append "seems like you are calling a task '" (symbol->string t) "' not found in " file))
-                                        (err (string-append "unbound global variable '"
-                                                            (symbol->string undefined-variable) "'."))))
-                                  (raise ex))))
-                          (lambda () (task-run ,t)))) tasks))))
+                                  (if (seems-same-symbol? ',t undefined-variable)
+                                      (err ,(string-append "seems like you are calling a task '" (symbol->string t) "' not found in " file))
+                                      (err (string-append "unbound global variable '"
+                                                          (symbol->string undefined-variable) "'."))))
+                                (raise ex))))
+                        (lambda () (task-run ,t)))) tasks)))
     (info "exiting directory " dir)))
 

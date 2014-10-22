@@ -6,6 +6,7 @@
   current-bin-directory
   current-project-name
   current-module-name
+  current-tasks-path
   log
   info
   info/color

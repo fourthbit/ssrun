@@ -1,27 +1,25 @@
 (define-task compile ()
   ;; Compile SSRun program
   (info/color 'green "Compiling SSrun...")
+  (ssrun#delete-file "ssrun.c")
   (gambit-compile-file "ssrun.scm" output: "ssrun" options: "-exe"))
 
 (define-task install ()
   ;; Install SSRun program
   (info/color 'green "Installing SSRun...")
-  (delete-file "~~/bin/ssrun")
-  (copy-file "ssrun" "~~/bin/ssrun")
+  (ssrun#delete-file "~~/bin/ssrun")
+  (ssrun#copy-file "ssrun" "~~/bin/ssrun")
   ;; Create symbolic link in /usr/bin
-  (delete-file "/usr/bin/ssrun")
+  (ssrun#delete-file "/usr/bin/ssrun")
   (create-symbolic-link "~~/bin/ssrun" "/usr/bin/ssrun")
-  ;; Install some Sake extensions
-  (info/color 'green "Installing SSRun definitions...")
-  #;
-  (copy-file (string-append (current-source-directory) "internal/tiny.scm")
-             (string-append (ssrun-extensions-path) "tiny.scm"))
-  #;
-  (copy-file (string-append (current-source-directory) "ssrun/extensions/core-macros.scm")
-             (string-append (ssrun-extensions-path) "aaaa_core-macros.scm"))
-  #;
-  (copy-file (string-append (current-source-directory) "ssrun/extensions/core.scm")
-             (string-append (ssrun-extensions-path) "core.scm")))
-
+  ;; Install basic SSRun tasks
+  (info/color 'green "Installing SSRun tasks...")
+  (ssrun#make-directory "~~lib/ssrun")
+  (ssrun#copy-files (fileset dir: "." test: (extension=? ".scm"))
+                    "~~lib/ssrun/")
+  (ssrun#make-directory "~~lib/ssrun/tasks")
+  (ssrun#copy-files (fileset dir: "tasks" test: (extension=? ".scm"))
+                    "~~lib/ssrun/tasks"))
+  
 (define-task all (compile install)
   'all)

@@ -1,7 +1,7 @@
-;;; @file ssrun.scm
-;;; this file is just a little wrapper around the function
-;;; ssrun in ssrun/common.scm
-;;; @author francesco bracchi <frbracch@gmail.com>
+;;!!! This file is just a little wrapper around the function
+;; ssrun in ssrun/common.scm
+;; .author Francesco Bracchi
+;; .author Alvaro Castro-Castilla
 
 (##namespace ("ssrun#"))
 (##include "~~/lib/gambit#.scm")
