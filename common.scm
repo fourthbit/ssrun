@@ -23,9 +23,6 @@
 (define current-module-name
   (make-parameter (current-project-name)))
 
-(define current-tasks-path
-  (make-parameter "~~lib/ssrun/tasks/"))
-
 ;;-------------------------------------------------------------------------------
 ;; Output
 
@@ -76,15 +73,16 @@
 ;;-------------------------------------------------------------------------------
 ;; Util
 
-(##include "tiny.scm")
+(##include "minimal.scm")
 
 ;;-------------------------------------------------------------------------------
 ;; Main
 
 (define (ssrun #!key 
-               (file "ssrunfile.scm")
+               (file ".ssrunfile.scm")
                (tasks '(all))
-               (extensions #t))
+               extensions-path
+               extensions)
   (let* ((file (path-expand file))
          (dir (path-directory file)))
     (info "entering directory " dir)
@@ -94,43 +92,55 @@
                                 "current directory."
                                 dir))))
     (eval `(begin
-             (##include "~~lib/ssrun/ssrunlib#.scm")
+             ,(if (file-exists? "ssrunlib#.scm")
+                  '(include "ssrunlib#.scm")
+                  '(include "~~lib/ssrun/ssrunlib#.scm"))
              ,(if extensions
                   (let ((extensions
-                         (map (lambda (f) (string-append (current-tasks-path) f))
+                         (map (lambda (f) (string-append (or extensions-path (current-extensions-path)) f))
                               (directory-files
-                               (list path: (current-tasks-path)
+                               (list path: (or extensions-path (current-extensions-path))
                                      ignore-hidden: 'dot-and-dot-dot)))))
                     `(begin ,@(map (lambda (e) `(include ,e)) extensions))))
-             (##include ,file)
+             (include ,file)
              ,@(map (lambda (t)
-                      `(with-exception-catcher
-                        (lambda (ex)
-                          (let ((seems-same-symbol?
-                                 (lambda (unmangled mangled)
-                                   (let* ((task unmangled)
-                                          (undefined-variable mangled)
-                                          (undef-str (symbol->string undefined-variable))
-                                          (undef-str-len (string-length undef-str))
-                                          (task-str (symbol->string task))
-                                          (task-str-len (string-length task-str))
-                                          (diff-lengths (- undef-str-len task-str-len)))
-                                     (if (zero? diff-lengths)
-                                         (string=? undef-str task-str)
-                                         (and (> diff-lengths 0)
-                                              (string=? (substring undef-str
-                                                                   diff-lengths
-                                                                   undef-str-len)
-                                                        task-str)
-                                              (char=? #\# (string-ref undef-str (- diff-lengths 1)))))))))
+                      (let* ((task&args t)
+                             (task&args-str (symbol->string task&args))
+                             (task&args-str-len (string-length task&args-str))
+                             (found-task-args (string-index task&args-str #\[))
+                             (task-str (if found-task-args
+                                           (substring task&args-str 0 found-task-args)
+                                           task&args-str))
+                             (task-str-len (string-length task-str))
+                             (args-str (substring task&args-str (+ found-task-args 1) (- task&args-str-len 1)))
+                             (arguments ((string-split #\,) args-str)))
+                        (pp arguments)
+                        ;; Test matching ] if there are arguments
+                        (if (and found-task-args
+                                 (not (char=? #\] (string-ref task&args-str (- task&args-str-len 1)))))
+                            (error "Unmatched parameters bracket in task" task-str))
+                        `(with-exception-catcher
+                          (lambda (ex)
+                            (define (seems-same-symbol? mangled-name)
+                              (let* ((undefined-variable mangled-name)
+                                     (undef-str (symbol->string undefined-variable))
+                                     (undef-str-len (string-length undef-str))
+                                     (diff-lengths (- undef-str-len ,task-str-len)))
+                                (if (zero? diff-lengths)
+                                    (string=? undef-str ,task-str)
+                                    (and (> diff-lengths 0)
+                                         (string=? (substring undef-str
+                                                              diff-lengths
+                                                              undef-str-len)
+                                                   ,task-str)
+                                         (char=? #\# (string-ref undef-str (- diff-lengths 1)))))))
                             (if (unbound-global-exception? ex)
                                 (let ((undefined-variable (unbound-global-exception-variable ex)))
-                                  
-                                  (if (seems-same-symbol? ',t undefined-variable)
-                                      (err ,(string-append "seems like you are calling a task '" (symbol->string t) "' not found in " file))
+                                  (if (seems-same-symbol? undefined-variable)
+                                      (err (string-append "seems like you are calling a task '" ,task-str "' not found in " ,file))
                                       (err (string-append "unbound global variable '"
                                                           (symbol->string undefined-variable) "'."))))
-                                (raise ex))))
-                        (lambda () (task-run ,t)))) tasks)))
+                                (raise ex)))
+                          (lambda () (task-run ,(string->symbol task-str) arguments: ',arguments)))))
+                    tasks)))
     (info "exiting directory " dir)))
-

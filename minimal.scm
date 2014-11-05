@@ -145,3 +145,55 @@
                   string-join))
           (else ""))))
 
+;; string-contains    s1 s2 [start1 end1 start2 end2] -> integer or false
+;; string-contains-ci s1 s2 [start1 end1 start2 end2] -> integer or false
+;;     Does string s1 contain string s2?
+;;     Return the index in s1 where s2 occurs as a substring, or false. The
+;;     optional start/end indices restrict the operation to the indicated
+;;     substrings.
+;; We do not support the optional arguments
+(define (string-contains str pattern)
+  (let* ((pat-len (string-length pattern))
+         (search-span (- (string-length str) pat-len))
+         (c1 (if (zero? pat-len) #f (string-ref pattern 0)))
+         (c2 (if (<= pat-len 1) #f (string-ref pattern 1))))
+    (cond
+     ((not c1) 0)                     ; empty pattern, matches upfront
+     ((not c2) (string-index str c1)) ; one-char pattern
+     (else                  ; matching a pattern of at least two chars
+      (let outer ((pos 0))
+        (cond
+         ((> pos search-span) #f) ; nothing was found thru the whole str
+         ((not (char=? c1 (string-ref str pos)))
+          (outer (+ 1 pos)))	; keep looking for the right beginning
+         ((not (char=? c2 (string-ref str (+ 1 pos))))
+          (outer (+ 1 pos)))     ; could've done pos+2 if c1 == c2....
+         (else                   ; two char matched: high probability
+				   	; the rest will match too
+          (let inner ((i-pat 2) (i-str (+ 2 pos)))
+            (if (>= i-pat pat-len) pos  ; whole pattern matched
+                (if (char=? (string-ref pattern i-pat)
+                            (string-ref str i-str))
+                    (inner (+ 1 i-pat) (+ 1 i-str))
+                    (outer (+ 1 pos))))))))))))	; mismatch after partial match
+
+;; Return the index of the first occurence of a-char in str, or #f
+;; This is a subset of the corresponding SRFI-13 function.
+;; The latter is more generic.
+(define (string-index str a-char)
+  (let loop ((pos 0))
+    (cond
+     ((>= pos (string-length str)) #f) ; whole string has been searched, in vain
+     ((char=? a-char (string-ref str pos)) pos)
+     (else (loop (+ pos 1))))))
+
+;; Return the index of the last occurence of a-char in str, or #f
+;; This is a subset of the corresponding SRFI-13 function.
+;; The latter is more generic.
+(define (string-index-right str a-char)
+  (let loop ((pos (dec (string-length str))))
+    (cond
+     ((negative? pos) #f)    ; whole string has been searched, in vain
+     ((char=? a-char (string-ref str pos)) pos)
+     (else (loop (- pos 1))))))
+

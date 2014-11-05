@@ -21,5 +21,11 @@
   (ssrun#copy-files (fileset dir: "tasks" test: (extension=? ".scm"))
                     "~~lib/ssrun/tasks"))
   
+(define-task (test first-param second-param third-param) ()
+  (println first-param)
+  (println second-param)
+  (println third-param)
+  'test)
+
 (define-task all (compile install)
   'all)
