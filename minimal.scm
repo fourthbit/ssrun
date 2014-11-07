@@ -96,6 +96,144 @@
      (lambda (p)
        (read-all p (lambda (p) (read-line p sep)))))))
 
+;; -- procedure+: string-split STRING
+;; -- procedure+: string-split STRING '()
+;; -- procedure+: string-split STRING '() MAXSPLIT
+;; Returns a list of whitespace delimited words in STRING.
+;; If STRING is empty or contains only whitespace, then the empty list
+;; is returned. Leading and trailing whitespaces are trimmed.
+;; If MAXSPLIT is specified and positive, the resulting list will
+;; contain at most MAXSPLIT elements, the last of which is the string
+;; remaining after (MAXSPLIT - 1) splits. If MAXSPLIT is specified and
+;; non-positive, the empty list is returned. "In time critical
+;; applications it behooves you not to split into more fields than you
+;; really need."
+;;
+;; -- procedure+: string-split STRING CHARSET
+;; -- procedure+: string-split STRING CHARSET MAXSPLIT
+;; Returns a list of words delimited by the characters in CHARSET in
+;; STRING. CHARSET is a list of characters that are treated as delimiters.
+;; Leading or trailing delimeters are NOT trimmed. That is, the resulting
+;; list will have as many initial empty string elements as there are
+;; leading delimiters in STRING.
+;;
+;; If MAXSPLIT is specified and positive, the resulting list will
+;; contain at most MAXSPLIT elements, the last of which is the string
+;; remaining after (MAXSPLIT - 1) splits. If MAXSPLIT is specified and
+;; non-positive, the empty list is returned. "In time critical
+;; applications it behooves you not to split into more fields than you
+;; really need."
+;;
+;; (string-split " abc d e f  ") ==> ("abc" "d" "e" "f")
+;; (string-split " abc d e f  " '() 1) ==> ("abc d e f  ")
+;; (string-split " abc d e f  " '() 0) ==> ()
+;; (string-split ":abc:d:e::f:" '(#\:)) ==> ("" "abc" "d" "e" "" "f" "")
+;; (string-split ":" '(#\:)) ==> ("" "")
+;; (string-split "root:x:0:0:Lord" '(#\:) 2) ==> ("root" "x:0:0:Lord")
+;; (string-split "/usr/local/bin:/usr/bin:/usr/ucb/bin" '(#\:))
+;; ==> ("/usr/local/bin" "/usr/bin" "/usr/ucb/bin")
+;; (string-split "/usr/local/bin" '(#\/)) ==> ("" "usr" "local" "bin")
+;; (define (string-split str . rest)
+;;   ;; maxsplit is a positive number
+;;   (define (split-by-whitespace str maxsplit)
+;;     (define (skip-ws i yet-to-split-count)
+;;       (cond
+;;        ((>= i (string-length str)) '())
+;;        ((char-whitespace? (string-ref str i))
+;;         (skip-ws (inc i) yet-to-split-count))
+;;        (else (scan-beg-word (inc i) i yet-to-split-count))))
+;;     (define (scan-beg-word i from yet-to-split-count)
+;;       (cond
+;;        ((zero? yet-to-split-count)
+;;         (cons (substring str from (string-length str)) '()))
+;;        (else (scan-word i from yet-to-split-count))))
+;;     (define (scan-word i from yet-to-split-count)
+;;       (cond
+;;        ((>= i (string-length str))
+;;         (cons (substring str from i) '()))
+;;        ((char-whitespace? (string-ref str i))
+;;         (cons (substring str from i) 
+;;               (skip-ws (inc i) (- yet-to-split-count 1))))
+;;        (else (scan-word (inc i) from yet-to-split-count))))
+;;     (skip-ws 0 (- maxsplit 1)))
+;;   ;; maxsplit is a positive number
+;;   ;; str is not empty
+;;   (define (split-by-charset str delimeters maxsplit)
+;;     (define (scan-beg-word from yet-to-split-count)
+;;       (cond
+;;        ((>= from (string-length str)) '(""))
+;;        ((zero? yet-to-split-count)
+;;         (cons (substring str from (string-length str)) '()))
+;;        (else (scan-word from from yet-to-split-count))))
+;;     (define (scan-word i from yet-to-split-count)
+;;       (cond
+;;        ((>= i (string-length str))
+;;         (cons (substring str from i) '()))
+;;        ((memq (string-ref str i) delimeters)
+;;         (cons (substring str from i) 
+;;               (scan-beg-word (inc i) (- yet-to-split-count 1))))
+;;        (else (scan-word (inc i) from yet-to-split-count))))
+;;     (scan-beg-word 0 (- maxsplit 1)))
+;;   ;; resolver of overloading...
+;;   ;; if omitted, maxsplit defaults to
+;;   ;; (inc (string-length str))
+;;   (if (string-null? str) '()
+;;       (if (null? rest) 
+;;           (split-by-whitespace str (inc (string-length str)))
+;;           (let ((charset (car rest))
+;;                 (maxsplit
+;;                  (if (pair? (cdr rest)) (cadr rest) (inc (string-length str)))))
+;;             (cond 
+;;              ((not (positive? maxsplit)) '())
+;;              ((null? charset) (split-by-whitespace str maxsplit))
+;;              (else (split-by-charset str charset maxsplit)))))))
+
+
+;; make-char-quotator QUOT-RULES
+;; Given QUOT-RULES, an assoc list of (char . string) pairs, return
+;; a quotation procedure. The returned quotation procedure takes a string
+;; and returns either a string or a list of strings. The quotation procedure
+;; check to see if its argument string contains any instance of a character
+;; that needs to be encoded (quoted). If the argument string is "clean",
+;; it is returned unchanged. Otherwise, the quotation procedure will
+;; return a list of string fragments. The input straing will be broken
+;; at the places where the special characters occur. The special character
+;; will be replaced by the corresponding encoding strings.
+;;
+;; For example, to make a procedure that quotes special HTML characters,
+;; do
+;; 	(make-char-quotator
+;; 	    '((#\< . "&lt;") (#\> . "&gt;") (#\& . "&amp;") (#\" . "&quot;")))
+(define (make-char-quotator char-encoding)
+  (let ((bad-chars (map car char-encoding)))
+    ;; Check to see if str contains one of the characters in charset,
+    ;; from the position i onward. If so, return that character's index.
+    ;; otherwise, return #f
+    (define (index-cset str i charset)
+      (let loop ((i i))
+	(and (< i (string-length str))
+	     (if (memv (string-ref str i) charset) i
+		 (loop (inc i))))))
+    ;; The body of the function
+    (lambda (str)
+      (let ((bad-pos (index-cset str 0 bad-chars)))
+	(if (not bad-pos) str           ; str had all good chars
+	    (let loop ((from 0) (to bad-pos))
+	      (cond
+	       ((>= from (string-length str)) '())
+	       ((not to)
+		(cons (substring str from (string-length str)) '()))
+	       (else
+		(let ((quoted-char
+		       (cdr (assv (string-ref str to) char-encoding)))
+		      (new-to 
+		       (index-cset str (inc to) bad-chars)))
+		  (if (< from to)
+		      (cons
+		       (substring str from to)
+		       (cons quoted-char (loop (inc to) new-to)))
+		      (cons quoted-char (loop (inc to) new-to))))))))))))
+
 ;; Concatenate strings
 (define (string-concatenate strings)
   (define (%string-copy! to tstart from fstart fend)
@@ -196,4 +334,5 @@
      ((negative? pos) #f)    ; whole string has been searched, in vain
      ((char=? a-char (string-ref str pos)) pos)
      (else (loop (- pos 1))))))
+
 
