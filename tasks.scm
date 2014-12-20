@@ -31,7 +31,8 @@
                                  (symbol->string (task-name task))
                                  "...\033[00m "))
          ;; Print arguements
-         (if (not (null? arguments))
+         (if (null? arguments)
+             (display "\n")
              (begin (display (string-append " ("))
                     (let recur ((expected (task-parameters task))
                                 (provided arguments))
