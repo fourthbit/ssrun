@@ -112,9 +112,10 @@
                                            (substring task&args-str 0 found-task-args)
                                            task&args-str))
                              (task-str-len (string-length task-str))
-                             (args-str (substring task&args-str (+ found-task-args 1) (- task&args-str-len 1)))
-                             (arguments ((string-split #\,) args-str)))
-                        (pp arguments)
+                             (arguments (if found-task-args
+                                            ((string-split #\,)
+                                             (substring task&args-str (+ found-task-args 1) (- task&args-str-len 1)))
+                                            '())))
                         ;; Test matching ] if there are arguments
                         (if (and found-task-args
                                  (not (char=? #\] (string-ref task&args-str (- task&args-str-len 1)))))
