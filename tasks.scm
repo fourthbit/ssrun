@@ -13,7 +13,7 @@
            (cond ((null? expected)
                   '())
                  ((null? provided)
-                  (cons ""
+                  (cons #f
                         (recur (cdr expected) '())))
                  (else
                   (cons (car provided)
@@ -31,8 +31,7 @@
                                  (symbol->string (task-name task))
                                  "...\033[00m "))
          ;; Print arguements
-         (if (null? arguments)
-             (display "\n")
+         (if arguments
              (begin (display (string-append " ("))
                     (let recur ((expected (task-parameters task))
                                 (provided arguments))
@@ -46,7 +45,8 @@
                              (display (car expected)) (display ": ") (display (car provided))
                              (if (not (null? (cdr expected))) (display ", "))
                              (recur (cdr expected) (cdr provided)))))
-                    (display ") \n")))
+                    (display ") \n"))
+             (display "\n"))
          ;; Run the task
          (task-force-run task arguments: arguments)
          (display "\033[01;34mdone\033[00m\n")

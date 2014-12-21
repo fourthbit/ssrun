@@ -79,7 +79,7 @@
 ;; Main
 
 (define (ssrun #!key 
-               (file ".ssrunfile.scm")
+               (file "ssrunfile.scm")
                (tasks '(all))
                extensions-path
                extensions)
@@ -92,6 +92,7 @@
                                 "current directory."
                                 dir))))
     (eval `(begin
+             (include "~/.gambcini")
              ,(if (file-exists? "ssrunlib#.scm")
                   '(include "ssrunlib#.scm")
                   '(include "~~lib/ssrun/ssrunlib#.scm"))
@@ -113,13 +114,10 @@
                                            task&args-str))
                              (task-str-len (string-length task-str))
                              (arguments (if found-task-args
-                                            ((string-split #\,)
-                                             (substring task&args-str (+ found-task-args 1) (- task&args-str-len 1)))
+                                            (map (lambda (s) (with-input-from-string s read))
+                                                 ((string-split #\,)
+                                                  (substring task&args-str (+ found-task-args 1) (- task&args-str-len 1))))
                                             '())))
-                        ;; Test matching ] if there are arguments
-                        (if (and found-task-args
-                                 (not (char=? #\] (string-ref task&args-str (- task&args-str-len 1)))))
-                            (error "Unmatched parameters bracket in task" task-str))
                         `(with-exception-catcher
                           (lambda (ex)
                             (define (seems-same-symbol? mangled-name)

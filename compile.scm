@@ -105,16 +105,9 @@
       (map-to-strings l "(")))))
 
 
-(define load-spheres-code
-  (let ((spheres-file "~~spheres/spheres.scm"))
-    `(if (file-exists? ,spheres-file)
-         (eval '(include ,spheres-file))
-         ;(println "spheres.scm missing -- Did you install Core Sphere?")
-         )))
-
-
-
-(##define (gambit-eval-here code #!key (flags-string "") (load-spheres #f) (verbose #f))
+(##define (gambit-eval-here code #!key
+                            (flags-string #f)
+                            (verbose #f))
   ;; This is a hack transforming all ' into ` since they work in all cases and makes
   ;; life easier when passed as a string with ' delimiters to bash
   (let ((quotes->semiquotes
@@ -128,20 +121,16 @@
                          (string-set! transformed n #\`))
                      (recur (+ n 1)))
                    transformed))))))
-    (let* ((code-string (quotes->semiquotes
-                         (object->string (cons 'begin
-                                               (if load-spheres
-                                                   (cons load-spheres-code
-                                                         code)
-                                                   code)))))
-           (command-string
-            (string-append (gambit-compiler) " " flags-string " -e '" code-string "'")))
+    (let ((code-string (quotes->semiquotes
+                        (object->string (cons 'begin code)))))
       (and verbose
            (begin (info "gambit-eval-here input code: ") (pp code)
                   (info "gambit-eval-here string: ") (print code-string)))
-      (shell-command command-string))))
-
-;; (##define (gambit-eval code-string)
-;;   (info "eval: " code-string)
-;;   (shell-command
-;;    (string-append (gambit-compiler) " -e '" code-string "'")))
+      (process-status
+       (open-process (list path: (gambit-compiler)
+                           ;;arguments: (list flags-string "-e" code-string)
+                           ;;arguments: (list "-e" "(pp 1234)")
+                           arguments: (if flags-string
+                                          (list flags-string "-e" code-string)
+                                          (list "-e" code-string))
+                           stdout-redirection: #f))))))
