@@ -1,352 +1,196 @@
-;;; Copyright (c) 2012, Alvaro Castro-Castilla. All rights reserved.
-;;; Utilities and procedures to be used within ssrunfiles (needs scheme-base installed)
+;;!!! Utilities and procedures to be used within ssrunfiles
+;; .author Alvaro Castro-Castilla, 2012-2014
 
-;;! Generate a unique C file from a module or a file
-;; Shouldn't be used directly, better use ssrun#compile-module
-;; .argument version: generate module version with specific features (compiler options, cond-expand...)
+;;! Generate a C file from a Scheme library
+;; .argument version: generate module version with specific features
+;;  (compiler options, cond-expand...)
 ;; .returns the path of the generated file
-(define (ssrun#compile-to-c module-or-file
-                           #!key
-                           (cond-expand-features '())
-                           (compiler-options '())
-                           (version compiler-options)
-                           (expander 'syntax-case)
-                           (output #f)
-                           (verbose #f))
-  (if (not (eq? 'syntax-case expander))
-      (err "The only supported expander is 'syntax-case"))
-  (or (file-exists? (current-build-directory))
-      (make-directory (current-build-directory)))
-  (let ((module (if (string? module-or-file)
-                    (err "Handling of module as file is unimplemented")
-                    module-or-file)))
-    (%check-module module 'ssrun#compile-to-c)
-    (let* ((header-module (%module-header module))
-           (macros-module (%module-macros module))
-           (version (if (null? version) (%module-version module) version))
-           (input-file (string-append (%sphere-path (%module-sphere module))
-                                      (default-source-directory)
-                                      (%module-filename-scm module)))
-           (intermediate-file (string-append (current-build-directory)
-                                             "_%_"
-                                             (%module-flat-name module)
-                                             (default-scm-extension)))
-           (output-file (or output
-                            (string-append (current-build-directory)
-                                           (%module-filename-c module version: version)))))
-      (info "compiling module to C -- "
-            (%module-sphere module)
-            ": "
-            (%module-id module)
-            (if (null? version) "" (string-append " version: " (object->string version))))
-      (let* ((generate-cond-expand-code
-              (lambda (features)
-                `((define-syntax syntax-rules-error
-                    (syntax-rules ()
-                      ((_) (0))))
-                  (define-syntax cond-expand
-                    (syntax-rules (and or not else ,@features)
-                      ((cond-expand) (syntax-rules-error "Unfulfilled cond-expand"))
-                      ((cond-expand (else body ...))
-                       (begin body ...))
-                      ((cond-expand ((and) body ...) more-clauses ...)
-                       (begin body ...))
-                      ((cond-expand ((and req1 req2 ...) body ...) more-clauses ...)
+(define (ssrun#compile-to-c library-or-file
+                            #!key
+                            (cond-expand-features '())
+                            (compiler-options '())
+                            (expander 'syntax-case)
+                            output
+                            verbose)
+  (let* ((library (if (string? library-or-file)
+                      (err "Handling of libraries as a file is unimplemented")
+                      library-or-file))
+         (library-sld (%find-library-sld library))
+         (input-file (%find-library-default-scm library))
+         (output-file (or output (%library-c-filename library))))
+    (info "compiling library to C using " (symbol->string expander)
+          " expander -- " (object->string library))
+    (let* ((generate-cond-expand-code
+            (lambda (features)
+              `((define-syntax syntax-rules-error
+                  (syntax-rules () ((_) (0))))
+                (define-syntax cond-expand
+                  (syntax-rules (and or not else ,@features)
+                    ((cond-expand) (syntax-rules-error "Unfulfilled cond-expand"))
+                    ((cond-expand (else body ...))
+                     (begin body ...))
+                    ((cond-expand ((and) body ...) more-clauses ...)
+                     (begin body ...))
+                    ((cond-expand ((and req1 req2 ...) body ...) more-clauses ...)
+                     (cond-expand
+                      (req1
                        (cond-expand
-                        (req1
-                         (cond-expand
-                          ((and req2 ...) body ...)
-                          more-clauses ...))
+                        ((and req2 ...) body ...)
                         more-clauses ...))
-                      ((cond-expand ((or) body ...) more-clauses ...)
+                      more-clauses ...))
+                    ((cond-expand ((or) body ...) more-clauses ...)
+                     (cond-expand more-clauses ...))
+                    ((cond-expand ((or req1 req2 ...) body ...) more-clauses ...)
+                     (cond-expand
+                      (req1
+                       (begin body ...))
+                      (else
+                       (cond-expand
+                        ((or req2 ...) body ...)
+                        more-clauses ...))))
+                    ((cond-expand ((not req) body ...) more-clauses ...)
+                     (cond-expand
+                      (req
                        (cond-expand more-clauses ...))
-                      ((cond-expand ((or req1 req2 ...) body ...) more-clauses ...)
-                       (cond-expand
-                        (req1
-                         (begin body ...))
-                        (else
-                         (cond-expand
-                          ((or req2 ...) body ...)
-                          more-clauses ...))))
-                      ((cond-expand ((not req) body ...) more-clauses ...)
-                       (cond-expand
-                        (req
-                         (cond-expand more-clauses ...))
-                        (else body ...)))
-                      ,@(map
-                         (lambda (cef)
-                           `((cond-expand (,cef body ...) more-clauses ...)
-                             (begin body ...)))
-                         features)
-                      ((cond-expand (feature-id body ...) more-clauses ...)
-                       (cond-expand more-clauses ...))))))))
-        (define filter-map (lambda (f l)
-                             (let recur ((l l))
-                               (if (null? l) '()
-                                   (let ((result (f (car l))))
-                                     (if result
-                                         (cons result (recur (cdr l)))
-                                         (recur (cdr l))))))))
-        (case expander
-          ((riaxpander)
-           (let ((compiling-without-riaxpander? (not (null? (%module-shallow-dependencies-to-prelude module)))))
-             (let ((compilation-environment-code
-                    (if compiling-without-riaxpander?
-                        ;; No Riaxpander: no compilation environment
-                        '()
-                        ;; Riaxpander: Add cond-expand-code and import macros
-                        `(,@(generate-cond-expand-code (cons 'compile-to-c cond-expand-features))
-                          ,@(map (lambda (m) `(##include-module-and-dependencies ',m ',(if verbose '(verbose) '())))
-                                 ;; Import shallow dependencies, as dependencies should already be expanded
-                                 (append (%module-shallow-dependencies-to-include module)
-                                         ;; (apply append (map %module-shallow-dependencies-to-include
-                                         ;;                    (%module-shallow-dependencies-to-load module)))
-                                         (if header-module (list header-module) '())
-                                         ;; (if macros-module (list macros-module) '())
-                                         ))))))
-               (if verbose
-                   (if compiling-without-riaxpander?
-                       (info/color 'green "bypassing the Macro expander, as the module uses prelude")
-                       (info/color 'green "expanding macros with Riaxpander")))
-               (if (and (not compiling-without-riaxpander?) verbose)
-                   (begin
-                     (info/color 'light-green "compilation environment code:")
-                     (for-each pp compilation-environment-code)))
-               ;; Eval compilation code in current environment
-               ;; This has been removed in favor of running the code directly in the spawned GSC instance
-               ;; (for-each eval compilation-environment-code)
-               (let* ((input-code (with-input-from-file input-file read-all))
-                      (intermediate-code
-                       (if compiling-without-riaxpander?
-                           ;; Without Riaxpander
-                           `(,@(map (lambda (f)
-                                      `(define-cond-expand-feature ,f))
-                                    (cons 'compile-to-c cond-expand-features))
-                             ,@(map (lambda (p)
-                                      `(##include ,(string-append
-                                                    (%module-path-src p)
-                                                    (%module-filename-scm p))))
-                                    ;; Dependencies here are not deep, as they should be already compiled
-                                    (%module-shallow-dependencies-to-prelude module))
-                             ,@input-code)
-                           ;; With Riaxpander
-                           `( ;; Compile-time cond-expand-features
-                             ,@(map (lambda (f)
-                                      `(define-cond-expand-feature ,f))
-                                    (cons 'compile-to-c cond-expand-features))
-                             ;; If there is a header module set up proper namespace
-                             ,@(if header-module
-                                   `((##namespace (,(%module-namespace module))))
-                                   '())
-                             ,@(if header-module
-                                   '((##include "~~lib/gambit#.scm"))
-                                   '())
-                             ;; Include custom compilation preludes defined in config.scm
-                             ,@(map (lambda (p)
-                                      `(##include ,(string-append
-                                                    (%module-path-src p)
-                                                    (%module-filename-scm p))))
-                                    ;; Dependencies here are not deep, as they should be already compiled
-                                    (%module-shallow-dependencies-to-prelude module))
-                             ;; Include load dependencies' headers if they have
-                             ,@(filter-map
-                                (lambda (m) (let ((module-header (%module-header m)))
-                                         (and module-header
-                                              `(##include ,(string-append
-                                                            (%module-path-src module-header)
-                                                            (%module-filename-scm module-header))))))
-                                ;; Dependencies here are not deep, as they should be already compiled
-                                (%module-shallow-dependencies-to-load module))
-                             ;; Include header module if we have one
-                             ,@(if header-module
-                                   `((##include ,(string-append
-                                                  (%module-path-src header-module)
-                                                  (%module-filename-scm header-module))))
-                                   '())
-                             ,@input-code))))
-                 ;; Verbose compilation
-                 (if verbose
-                     (begin (info/color 'light-green "code to be compiled:")
-                            (for-each pp intermediate-code)))
-                 ;; Write code in intermediate file
-                 (call-with-output-file
-                     intermediate-file
-                   (lambda (f) (for-each (lambda (expr) (pp expr f)) intermediate-code)))
-                 ;; Compile
-                 (or (zero?
-                      (gambit-eval-here
-                       `(,@compilation-environment-code
-                         (or (compile-file-to-target
-                              ,intermediate-file
-                              output: ,output-file
-                              options: ',compiler-options)
-                             (exit 1)))
-                       flags-string: (if compiling-without-riaxpander? "-f" "")))
-                     (err "error compiling generated C file"))))))
-          ((syntax-case)
-           (let ((compilation-environment-code
-                  `(,@(generate-cond-expand-code (cons 'compile-to-c cond-expand-features))
-                    ,@(map (lambda (m) `(##include-module-and-dependencies ',m ',(if verbose '(verbose) '())))
-                           ;; Import shallow dependencies, as dependencies should already be expanded
-                           (append (%module-shallow-dependencies-to-include module)
-                                   ;; (apply append (map %module-shallow-dependencies-to-include
-                                   ;;                    (%module-shallow-dependencies-to-load module)))
-                                   (if header-module (list header-module) '())
-                                   ;; (if macros-module (list macros-module) '())
-                                   )))))
-             (if verbose
-                 (begin
-                   (info/color 'light-green "compilation environment code:")
-                   (for-each pp compilation-environment-code)))
-             ;; Eval compilation code in current environment
-             ;; This has been removed in favor of running the code directly in the spawned GSC instance
-             ;; (for-each eval compilation-environment-code)
-             (let* ((input-code (with-input-from-file input-file read-all))
-                    (intermediate-code
-                     `( ;; Compile-time cond-expand-features
-                       ,@(map (lambda (f)
-                                `(define-cond-expand-feature ,f))
-                              (cons 'compile-to-c cond-expand-features))
-                       ;; If there is a header module set up proper namespace
-                       ,@(if header-module
-                             `((##namespace (,(%module-namespace module))))
-                             '())
-                       ,@(if header-module
-                             '((##include "~~lib/gambit#.scm"))
-                             '())
-                       ;; EXPAND custom compilation preludes defined in config.scm
-                       ,@(map (lambda (p)
-                                `(include ,(string-append (%module-path-src p) (%module-filename-scm p))))
-                              ;; Dependencies here are not deep, as they should be already compiled
-                              (%module-shallow-dependencies-to-prelude module))
-                       ;; Include load dependencies' headers if they have
-                       ,@(filter-map
-                          (lambda (m) (let ((module-header (%module-header m)))
-                                   (and module-header
-                                        `(##include ,(string-append
-                                                      (%module-path-src module-header)
-                                                      (%module-filename-scm module-header))))))
-                          ;; Dependencies here are not deep, as they should be already compiled
-                          (%module-shallow-dependencies-to-load module))
-                       ;; Include header module if we have one
-                       ,@(if header-module
-                             `((##include ,(string-append
-                                            (%module-path-src header-module)
-                                            (%module-filename-scm header-module))))
-                             '())
-                       ,@input-code)))
-               ;; Verbose compilation
-               (if verbose
-                   (begin (info/color 'light-green "code to be compiled:")
-                          (for-each pp intermediate-code)))
-               ;; Write code in intermediate file
-               (call-with-output-file
-                   intermediate-file
-                 (lambda (f) (for-each (lambda (expr) (pp expr f)) intermediate-code)))
-               ;; Compile
-               (if verbose (info/color 'light-green "syntax-case expansion:"))
-               (or (zero?
-                    (gambit-eval-here
-                     `(,@compilation-environment-code
-                       (syntax-case-debug ,verbose)
-                       (or (compile-file-to-target
-                            ,intermediate-file
-                            output: ,output-file
-                            options: ',compiler-options)
-                           (exit 1)))
-                     flags-string: ""))
-                   (err "error compiling generated C file")))))
-          ((gambit)
-           (err "Gambit expander workflow not implemented"))
-          (else (err "Unknown expander"))))
-      output-file)))
+                      (else body ...)))
+                    ,@(map
+                       (lambda (cef)
+                         `((cond-expand (,cef body ...) more-clauses ...)
+                           (begin body ...)))
+                       features)
+                    ((cond-expand (feature-id body ...) more-clauses ...)
+                     (cond-expand more-clauses ...))))))))
+      (case expander
+        ((syntax-case)
+         (let ((compilation-environment-code
+                `(,@(generate-cond-expand-code (cons 'compile-to-c cond-expand-features))
+                  (%load-library ',library only-syntax: #t))))
+           (if verbose
+               (begin
+                 (info/color 'light-green "compilation environment code:")
+                 (for-each pp compilation-environment-code)))
+           ;; Compile
+           (if verbose (info/color 'light-green "syntax-case expansion:"))
+           (or (zero?
+                (gambit-eval-here
+                 `(,@compilation-environment-code
+                   (syntax-case-debug ,verbose)
+                   (or (compile-file-to-target
+                        ,input-file
+                        output: ,output-file
+                        options: ',compiler-options)
+                       (exit 1)))))
+               (err "ssrun#compile-to-c: error compiling generated C file in child process"))))
+        ((gambit)
+         (let ((compilation-environment-code
+                '((void))))
+           (when verbose
+                 (info/color 'light-green "compilation environment code:")
+                 (for-each pp compilation-environment-code))
+           ;; Compile
+           (or (zero?
+                (gambit-eval-here
+                 `(,@compilation-environment-code
+                   (or (compile-file-to-target
+                        ,input-file
+                        output: ,output-file
+                        options: ',compiler-options)
+                       (exit 1)))
+                 flags-string: "-f"))
+               (err "ssrun#compile-to-c: error compiling generated C file in child process"))))
+        (else (err "Unknown expander"))))
+    output-file))
 
 ;;! Compile a C file generated by Gambit
-;; Shouldn't be used directly, better use ssrun#compile-module
+;; Shouldn't be used directly, better use ssrun#compile-library
 (define (ssrun#compile-c-to-o c-file
-                             #!key
-                             (output (path-strip-extension c-file))
-                             (env-options '())
-                             (options '())
-                             (cc-options "")
-                             (ld-options "")
-                             (delete-c #f)
-                             verbose)
-  (if ((newer-than? output) c-file)
+                              #!key
+                              (options '())
+                              (environment-options '())
+                              output
+                              cc-options
+                              ld-options
+                              delete-c
+                              verbose)
+  (if (or (not output) ((newer-than? output) c-file))
       (let* ((env-code
-              (if (null? env-options)
-                  #!void
-                  (begin (map (lambda (e) `(setenv ,(car e) ,(cadr e))) env-options))))
+              (if (null? environment-options)
+                  '()
+                  (begin (map (lambda (e) `(setenv ,(car e) ,(cadr e))) environment-options))))
+             (un-env-code
+              (if (null? environment-options)
+                  '()
+                  (begin (map (lambda (e) `(setenv ,(car e) "")) environment-options))))
              (compile-code
               `(,@env-code
-                (compile-file ,c-file options: ',options output: ,output cc-options: ,cc-options ld-options: ,ld-options))))
+                ,(if output ;; output filename is discovered by Gambit if not provided
+                     `(compile-file ,c-file
+                                    options: ',options
+                                    output: ,output
+                                    cc-options: ,(or cc-options "")
+                                    ld-options: ,(or ld-options ""))
+                     `(compile-file ,c-file
+                                    options: ',options
+                                    cc-options: ,(or cc-options "")
+                                    ld-options: ,(or ld-options "")))
+                ,@un-env-code)))
         (info "compiling C file to o -- " c-file)
         (if verbose (begin (info/color 'green "Spawning a Gambit instance with this code: ")
                            (pp compile-code)))
-        (or (zero?
-             (gambit-eval-here compile-code))
+        (or (zero? (gambit-eval-here compile-code))
             (err "error compiling C file"))))
   (if delete-c
       (delete-file c-file recursive: #t))
   output)
 
-;;! Compile to o in one step, through a C intermediary file
-(define (ssrun#compile-module module
-                             #!key
-                             (cond-expand-features '())
-                             (compiler-options '())
-                             (version compiler-options)
-                             (expander 'syntax-case)
-                             c-output-file
-                             o-output-file
-                             override-env-options
-                             override-cc-options
-                             override-ld-options
-                             verbose
-                             delete-c)
-  (let ((scm-path (string-append
-                   (%module-path-src module)
-                   (%module-filename-scm module)))
-        (default-path (string-append
-                       (%module-path-lib module)
-                       (%module-filename-c module)))
-        (c-file #f))
-    (if (not ((newer-than? default-path) scm-path))
-        (set! c-file default-path)
-        (set! c-file (ssrun#compile-to-c module
-                                        cond-expand-features: cond-expand-features
-                                        compiler-options: compiler-options
-                                        version: version
-                                        expander: expander
-                                        output: c-output-file
-                                        verbose: verbose)))
-    (ssrun#compile-c-to-o c-file
-                         output:
-                         (or o-output-file (path-strip-extension c-file))
-                         env-options:
-                         (or override-env-options
-                             (%module-shallow-dependencies-env-options module))
-                         cc-options:
-                         (or override-cc-options
-                             (%process-cc-options (%module-shallow-dependencies-cc-options module)))
-                         ld-options:
-                         (or override-ld-options
-                             (%process-ld-options (%module-shallow-dependencies-ld-options module)))
-                         delete-c: delete-c
-                         verbose: verbose)))
+;;! Compile to .o from a C file
+(define (ssrun#compile-library lib
+                               #!key
+                               (cond-expand-features '())
+                               (compiler-options '())
+                               (expander 'syntax-case)
+                               c-output-file
+                               o-output-file
+                               (environment-options '())
+                               cc-options
+                               ld-options
+                               verbose
+                               (delete-c #t)
+                               force)
+  (let ((scm-file (%find-library-default-scm lib))
+        (object-file (%library-object-filename lib))
+        (c-file (or c-output-file (%library-c-filename lib))))
+    (if (or force
+            ((newer-than? object-file) scm-file)
+            ((newer-than? c-file) scm-file))
+        (ssrun#compile-to-c lib
+                            cond-expand-features: cond-expand-features
+                            compiler-options: compiler-options
+                            expander: expander
+                            output: c-output-file
+                            verbose: verbose))
+    (if (or force
+            ((newer-than? object-file) scm-file))
+        (ssrun#compile-c-to-o c-file
+                              output: o-output-file
+                              environment-options: environment-options
+                              cc-options: cc-options
+                              ld-options: ld-options
+                              delete-c: delete-c
+                              verbose: verbose))))
 
 ;;! Compile to exe
+;; TODO: pending update
 (define (ssrun#compile-to-exe exe-name
-                             modules
-                             #!key
-                             (version '())
-                             (cond-expand-features '())
-                             (compiler-options '())
-                             override-cc-options
-                             override-ld-options
-                             (output (string-append (current-bin-directory) exe-name))
-                             (strip #t)
-                             (verbose #f))
+                              libraries
+                              #!key
+                              (cond-expand-features '())
+                              (compiler-options '())
+                              override-cc-options
+                              override-ld-options
+                              (strip #t)
+                              verbose)
+  (err "Pending update")
   ;; Make sure work directories are ready
   (unless (file-exists? (current-build-directory)) (make-directory (current-build-directory)))
   (unless (file-exists? (current-bin-directory)) (make-directory (current-bin-directory)))
@@ -384,10 +228,10 @@
                                                         (info "Compiling deferred dependency "
                                                               (object->string (%module-normalize mdep)))
                                                         (ssrun#compile-to-c mdep
-                                                                           version: version
-                                                                           cond-expand-features: cond-expand-features
-                                                                           compiler-options: compiler-options
-                                                                           verbose: verbose)))))))
+                                                                            version: version
+                                                                            cond-expand-features: cond-expand-features
+                                                                            compiler-options: compiler-options
+                                                                            verbose: verbose)))))))
                                         (%module-deep-dependencies-to-load m))
                                    (list (ssrun#compile-to-c
                                           m
@@ -414,12 +258,14 @@
        flags-string: "-f"))))
 
 ;;! Generate a flat link file
+;; TODO: pending update
 (define (ssrun#link-flat link-file
-                        modules
-                        #!key
-                        (dir (current-build-directory))
-                        (version '())
-                        (verbose #f))
+                         libraries
+                         #!key
+                         (dir (current-build-directory))
+                         (version '())
+                         (verbose #f))
+  (err "Pending update")
   (info/color 'green (string-append "generating flat link file: " link-file))
   (let* ((output-file (string-append dir link-file))
          (code
@@ -433,12 +279,14 @@
     output-file))
 
 ;;! Generate an incremental link file
+;; TODO: pending update
 (define (ssrun#link-incremental link-file
-                               modules
-                               #!key
-                               (dir (current-build-directory))
-                               (version '())
-                               (verbose #f))
+                                libraries
+                                #!key
+                                (dir (current-build-directory))
+                                (version '())
+                                (verbose #f))
+  (err "Pending update")
   (info/color 'green (string-append "generating an incremental link file: " link-file))
   (let* ((output-file (string-append dir link-file))
          (code
@@ -451,26 +299,9 @@
             (err "error generating Gambit incremental link file"))
     output-file))
 
-;;! Make a module that includes a set of modules
-(define (ssrun#generate-includer modules #!key (output "merged-modules.scm"))
-  (let ((output-path (string-append (current-build-directory) output)))
-    (call-with-output-file
-        output-path
-      (lambda (file)
-        (display
-         (apply
-          string-append
-          (map (lambda (m) (string-append "(include \""
-                                     (current-source-directory)
-                                     (%module-filename-scm m)
-                                     "\")\n"))
-               modules))
-         file)))
-    output-path))
-
 ;;! Substitute (include <>) by the code in the referenced file
 ;; Merges the included files recursively, as S-expressions, but respects
-;; the input-file as text, leaving the 
+;; the input-file as text
 (define (ssrun#expand-includes input-file output-file)
   (define (do-expansion form)
     (map** (lambda (e) (if (and (pair? e) (eq? (car e) 'include))
@@ -530,26 +361,10 @@
                   (cons (car str-rest)
                         (recur (+ i 1) (cdr str-rest)))))))))))
 
-;;! Install o and/or C file in the lib/ directory
-(define (ssrun#make-module-available m
-                                    #!key
-                                    (versions '(()))
-                                    (omit-o #f)
-                                    (omit-c #f))
-  (or (file-exists? (current-lib-directory))
-      (make-directory (current-lib-directory)))
-  (for-each
-   (lambda (version)
-     (or omit-o
-         (copy-file (string-append (current-build-directory) (%module-filename-o m version: version))
-                    (string-append (current-lib-directory) (%module-filename-o m version: version))))
-     (or omit-c
-         (copy-file (string-append (current-build-directory) (%module-filename-c m version: version))
-                    (string-append (current-lib-directory) (%module-filename-c m version: version)))))
-   versions))
-
 ;;! Test all files in test/
+;; TODO: pending update
 (define (ssrun#test-all)
+  (err "Pending update")
   (for-each ssrun#test
             (fileset dir: "test/"
                      test: (f-and (extension=? ".scm")
@@ -557,7 +372,13 @@
                      recursive: #t)))
 
 ;;! Test a file
-(define (ssrun#test module)
+(define (ssrun#test library)
+  (define (library-test-file library)
+    (let ((file (string-append
+                 (%find-library-path library) ".test/"
+                 (path-strip-directory (%find-library-default-scm library)))))
+      (and (file-exists? file) file)))
+  (err "Pending update")
   (cond
    ((string? module)
     (if (file-exists? module)
@@ -575,31 +396,13 @@
     (err "Bad testing module description: file path or module"))))
 
 ;;! Clean all default generated files and directories
-(define (ssrun#default-clean)
-  (delete-file (current-build-directory) recursive: #t)
-  (delete-file (current-lib-directory) recursive: #t)
-  (delete-file (current-bin-directory) recursive: #t))
-
-;;! Install all the files in lib/ in the system directory for the library
-(define (ssrun#install-sphere-to-system #!key
-                                       (extra-directories '())
-                                       (sphere (%current-sphere)))
-  (delete-file (%sphere-system-path sphere) recursive: #t)
-  (make-directory (%sphere-system-path sphere))
-  (copy-files '("config.scm" "ssrunfile.scm")
-              (%sphere-system-path sphere))
-  (for-each (lambda (dir)
-              (if (file-exists? dir)
-                  (begin (make-directory (string-append (%sphere-system-path sphere) dir))
-                         (copy-files (fileset dir: dir recursive: #f)
-                                     (string-append (%sphere-system-path sphere) dir)))))
-            `(,(path-relative (current-source-directory))
-              ,(path-relative (current-lib-directory))
-              ,@extra-directories)))
-
-;;! Uninstall all the files from the system installation
-(define (ssrun#uninstall-sphere-from-system #!optional (sphere (%current-sphere)))
-  (delete-file (%sphere-system-path sphere) recursive: #t))
+(define (ssrun#clean-libraries libraries)
+  (for-each (lambda (l)
+              (let ((c-file (%library-c-filename l)))
+                (if (file-exists? c-file) (delete-file c-file)))
+              (let ((o-file (%library-object-filename l)))
+                (if (file-exists? o-file) (delete-file o-file))))
+            libraries))
 
 ;;! Get the host platform
 (define (ssrun#host-platform)
@@ -613,23 +416,24 @@
           (else (err "ssrun#host-platform -> can't detect current platform")))))
 
 ;;! Parallel for-each, suitable mainly for parallel compilation, which spawns external processes
-(define (ssrun#parallel-for-each f l
-                                #!key
-                                (max-thread-number
-                                 (case (ssrun#host-platform)
-                                   ((linux)
-                                    (string->number
-                                     (with-input-from-process "nproc"
-                                                              read-line)))
-                                   ((osx)
-                                    (string->number
-                                     (with-input-from-port
-                                         (open-process
-                                          (list path: "sysctl"
-                                                arguments:
-                                                '("-n" "hw.logicalcpu")))
+(define (ssrun#parallel-for-each
+         f l
+         #!key
+         (max-thread-number
+          (case (ssrun#host-platform)
+            ((linux)
+             (string->number
+              (with-input-from-process "nproc"
                                        read-line)))
-                                   (else 2))))
+            ((osx)
+             (string->number
+              (with-input-from-port
+                  (open-process
+                   (list path: "sysctl"
+                         arguments:
+                         '("-n" "hw.logicalcpu")))
+                read-line)))
+            (else 2))))
   (info "using " max-thread-number " compilation threads")
   (let ((pending-elements l)
         (elements-mutex (make-mutex))

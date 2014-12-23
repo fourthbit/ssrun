@@ -205,6 +205,7 @@
 ;; 	(make-char-quotator
 ;; 	    '((#\< . "&lt;") (#\> . "&gt;") (#\& . "&amp;") (#\" . "&quot;")))
 (define (make-char-quotator char-encoding)
+  (define (inc i) (+ i 1))
   (let ((bad-chars (map car char-encoding)))
     ;; Check to see if str contains one of the characters in charset,
     ;; from the position i onward. If so, return that character's index.
@@ -329,7 +330,7 @@
 ;; This is a subset of the corresponding SRFI-13 function.
 ;; The latter is more generic.
 (define (string-index-right str a-char)
-  (let loop ((pos (dec (string-length str))))
+  (let loop ((pos (- (string-length str) 1)))
     (cond
      ((negative? pos) #f)    ; whole string has been searched, in vain
      ((char=? a-char (string-ref str pos)) pos)
