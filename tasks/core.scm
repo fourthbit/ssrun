@@ -361,39 +361,18 @@
                   (cons (car str-rest)
                         (recur (+ i 1) (cdr str-rest)))))))))))
 
-;;! Test all files in test/
-;; TODO: pending update
-(define (ssrun#test-all)
-  (err "Pending update")
-  (for-each ssrun#test
-            (fileset dir: "test/"
+;;! Run a file
+(define (ssrun#run-file file)
+  (gambit-eval-here
+   `((expander:include ,(string-append file)))))
+
+;;! Run all files in a directory
+(define (ssrun#run-all-files #!optional (dir (current-directory)))
+  (for-each ssrun#run-file
+            (fileset dir: dir
                      test: (f-and (extension=? ".scm")
                                   (f-not (ends-with? "#.scm")))
                      recursive: #t)))
-
-;;! Test a file
-(define (ssrun#test library)
-  (define (library-test-file library)
-    (let ((file (string-append
-                 (%find-library-path library) ".test/"
-                 (path-strip-directory (%find-library-default-scm library)))))
-      (and (file-exists? file) file)))
-  (err "Pending update")
-  (cond
-   ((string? module)
-    (if (file-exists? module)
-        (if (not (zero? (gambit-eval-here
-                         `((##spheres-include ,module)))))
-            (err "Internal error running tests. Child process exited abnormally."))
-        (err "Testing file doesn't exist")))
-   ((%module? module)
-    (%check-module module 'ssrun#test)
-    (if (not (zero? (gambit-eval-here
-                     `((##spheres-include ,(string-append "test/"
-                                                          (%module-filename-scm module)))))))
-        (err "Internal error running tests. Child process exited abnormally.")))
-   (else
-    (err "Bad testing module description: file path or module"))))
 
 ;;! Clean all default generated files and directories
 (define (ssrun#clean-libraries libraries)
