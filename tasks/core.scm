@@ -87,9 +87,7 @@
                         output: ,output-file
                         options: ',compiler-options)
                        (exit 1)))))
-               (begin
-                 (if (not found-file) (delete-file input-file)) ;; delete if generated
-                 (err "ssrun#compile-to-c: error compiling generated C file in child process")))))
+               (err "ssrun#compile-to-c: error compiling generated C file in child process"))))
         ((gambit)
          (let ((input-file (%find-library-scm library))
                (compilation-environment-code
