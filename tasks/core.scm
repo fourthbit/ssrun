@@ -397,7 +397,9 @@
               (let ((c-file (%library-c-path l)))
                 (if (file-exists? c-file) (delete-file c-file)))
               (let ((o-file (%library-object-path l)))
-                (if (file-exists? o-file) (delete-file o-file))))
+                (if (file-exists? o-file) (delete-file o-file)))
+              (let ((merge-file (%library-merged-scm-path l)))
+                (if (file-exists? merge-file) (delete-file merge-file))))
             libraries))
 
 ;;! Get the host platform
