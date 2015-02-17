@@ -78,18 +78,19 @@
                  (for-each pp compilation-environment-code)))
            ;; Compile
            (if verbose (info/color 'light-green "syntax-case expansion:"))
-           (or (zero?
-                (gambit-eval-here
-                 `(,@compilation-environment-code
-                   (syntax-case-debug ,verbose)
-                   (or (compile-file-to-target
-                        ,input-file
-                        output: ,output-file
-                        options: ',compiler-options)
-                       (exit 1)))))
-               (begin
+           (or (let ((process-result
+                      (gambit-eval-here
+                       `(,@compilation-environment-code
+                         (syntax-case-debug ,verbose)
+                         (or (compile-file-to-target
+                              ,input-file
+                              output: ,output-file
+                              options: ',compiler-options)
+                             (exit 1))))))
                  ;; Delete if merged file is generated
-                 (if (not found-file) (delete-file input-file))(err "ssrun#compile-to-c: error compiling generated C file in child process")))))
+                 (if (not found-file) (delete-file input-file))
+                 (if (not (zero? process-result))
+                     (err "ssrun#compile-to-c: error compiling generated C file in child process"))))))
         ((gambit)
          (let ((input-file (%find-library-scm library))
                (compilation-environment-code
