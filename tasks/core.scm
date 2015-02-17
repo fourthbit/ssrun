@@ -87,7 +87,9 @@
                         output: ,output-file
                         options: ',compiler-options)
                        (exit 1)))))
-               (err "ssrun#compile-to-c: error compiling generated C file in child process"))))
+               (begin
+                 ;; Delete if merged file is generated
+                 (if (not found-file) (delete-file input-file))(err "ssrun#compile-to-c: error compiling generated C file in child process")))))
         ((gambit)
          (let ((input-file (%find-library-scm library))
                (compilation-environment-code
@@ -174,16 +176,17 @@
                                verbose
                                (delete-c #t)
                                force)
-  (let ((scm-file (or (%find-library-scm lib)
-                      (let ((merged (%library-merged-scm-path lib)))
-                        (and (file-exists? merged) merged))))
+  (let ((scm-files (or (let ((found (%find-library-scm lib)))
+                         (and found (list found)))
+                       (map (lambda (f) (string-append (%find-library-path lib) (cadr f)))
+                            (%library-read-syntax&find-includes lib #f))))
         (object-file (%library-object-path lib))
         (c-file (or c-output-file (%library-c-path lib))))
     (if (or force
-            (and
-             scm-file
-             ((newer-than? object-file) scm-file)
-             ((newer-than? c-file) scm-file)))
+            (any (lambda (scm-file) (and scm-file ((newer-than? object-file) scm-file)))
+                 scm-files)
+            (any (lambda (scm-file) (and scm-file ((newer-than? c-file) scm-file)))
+                 scm-files))
         (ssrun#compile-to-c lib
                             cond-expand-features: cond-expand-features
                             compiler-options: compiler-options
@@ -191,9 +194,8 @@
                             output: c-output-file
                             verbose: verbose))
     (if (or force
-            (and
-             scm-file
-             ((newer-than? object-file) scm-file)))
+            (any (lambda (scm-file) (and scm-file ((newer-than? object-file) scm-file)))
+                 scm-files))
         (ssrun#compile-c-to-o c-file
                               output: o-output-file
                               environment-options: environment-options
