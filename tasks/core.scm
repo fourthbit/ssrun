@@ -174,12 +174,16 @@
                                verbose
                                (delete-c #t)
                                force)
-  (let ((scm-file (%find-library-scm lib))
+  (let ((scm-file (or (%find-library-scm lib)
+                      (let ((merged (%library-merged-scm-path lib)))
+                        (and (file-exists? merged) merged))))
         (object-file (%library-object-path lib))
         (c-file (or c-output-file (%library-c-path lib))))
     (if (or force
-            ((newer-than? object-file) scm-file)
-            ((newer-than? c-file) scm-file))
+            (and
+             scm-file
+             ((newer-than? object-file) scm-file)
+             ((newer-than? c-file) scm-file)))
         (ssrun#compile-to-c lib
                             cond-expand-features: cond-expand-features
                             compiler-options: compiler-options
@@ -187,7 +191,9 @@
                             output: c-output-file
                             verbose: verbose))
     (if (or force
-            ((newer-than? object-file) scm-file))
+            (and
+             scm-file
+             ((newer-than? object-file) scm-file)))
         (ssrun#compile-c-to-o c-file
                               output: o-output-file
                               environment-options: environment-options
