@@ -184,8 +184,7 @@
                                verbose
                                (delete-c #t)
                                force)
-  (let ((sld-file (%find-library-sld lib))
-        (scm-files (map (lambda (f) (string-append (%find-library-path lib) (cadr f)))
+  (let ((scm-files (map (lambda (f) (string-append (%find-library-path lib) (cadr f)))
                         (%library-read-syntax&find-includes lib #f)))
         (object-file (%library-object-path lib))
         (c-file (or c-output-file (%library-c-path lib))))
@@ -194,29 +193,24 @@
                                 " not found -- included in library definition "
                                 (object->string lib))))
               scm-files)
-    (let ((new-sources?
+    (let ((compile?
            (or force
                (any (lambda (f) (and f ((newer-than? object-file) f)))
-                    (cons sld-file scm-files))
-               (any (lambda (f) (and f ((newer-than? c-file) f)))
-                    (cons sld-file scm-files)))))
-      (if new-sources?
-          (ssrun#compile-to-c lib
-                              cond-expand-features: cond-expand-features
-                              compiler-options: compiler-options
-                              expander: expander
-                              output: c-output-file
-                              verbose: verbose))
-      (if (or force
-              (and new-sources?
-                   ((newer-than? object-file) c-file)))
-          (ssrun#compile-c-to-o c-file
-                                output: o-output-file
-                                environment-options: environment-options
-                                cc-options: cc-options
-                                ld-options: ld-options
-                                delete-c: delete-c
-                                verbose: verbose)))))
+                    scm-files))))
+      (when compile?
+            (ssrun#compile-to-c lib
+                                cond-expand-features: cond-expand-features
+                                compiler-options: compiler-options
+                                expander: expander
+                                output: c-output-file
+                                verbose: verbose)
+            (ssrun#compile-c-to-o c-file
+                                  output: o-output-file
+                                  environment-options: environment-options
+                                  cc-options: cc-options
+                                  ld-options: ld-options
+                                  delete-c: delete-c
+                                  verbose: verbose)))))
 
 ;;! Compile to exe
 ;; TODO: pending update
