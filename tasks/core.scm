@@ -63,9 +63,10 @@
                      (cond-expand more-clauses ...))))))))
       (case expander
         ((syntax-case)
-         (let* ((includes
-                 (map (lambda (f) (string-append library-path (cadr f)))
-                      (%library-read-syntax&find-includes library #f)))
+         (let* ((includes (or (and library-sld
+                                   (map (lambda (f) (string-append (%find-library-path library) (cadr f)))
+                                        (%library-read-syntax&find-includes library #f)))
+                              (list (%find-library-scm library))))
                 (input-file (if (= 1 (length includes))
                                 (car includes)
                                 (ssrun#merge-files
@@ -121,7 +122,10 @@
    (lambda (input-file)
      (call-with-input-file input-file
        (lambda (ip) (call-with-output-file (list path: output-file append: #t)
-                 (lambda (op) (for-each (lambda (form) (pp form op)) (read-all ip)))))))
+                 (lambda (op)
+                   ;; Necessary for include macro to be aware of current location
+                   (current-directory (path-directory input-file))
+                   (for-each (lambda (form) (pp form op)) (read-all ip)))))))
    files)
   (when verbose
         (println "merging files:")
@@ -184,8 +188,10 @@
                                verbose
                                (delete-c #t)
                                force)
-  (let ((scm-files (map (lambda (f) (string-append (%find-library-path lib) (cadr f)))
-                        (%library-read-syntax&find-includes lib #f)))
+  (let ((scm-files (or (and (%find-library-sld lib)
+                            (map (lambda (f) (string-append (%find-library-path lib) (cadr f)))
+                                 (%library-read-syntax&find-includes lib #f)))
+                       (list (%find-library-scm lib))))
         (object-file (%library-object-path lib))
         (c-file (or c-output-file (%library-c-path lib))))
     (for-each (lambda (f) (when (not (file-exists? f))
