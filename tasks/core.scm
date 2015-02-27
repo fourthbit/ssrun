@@ -64,8 +64,7 @@
       (case expander
         ((syntax-case)
          (let* ((includes (or (and library-sld
-                                   (map (lambda (f) (string-append (%find-library-path library) (cadr f)))
-                                        (%library-read-syntax&find-includes library #f)))
+                                   (%library-read-syntax&find-includes library #f))
                               (list (%find-library-scm library))))
                 (input-file (if (= 1 (length includes))
                                 (car includes)
@@ -188,35 +187,22 @@
                                verbose
                                (delete-c #t)
                                force)
-  (let ((scm-files (or (and (%find-library-sld lib)
-                            (map (lambda (f) (string-append (%find-library-path lib) (cadr f)))
-                                 (%library-read-syntax&find-includes lib #f)))
-                       (list (%find-library-scm lib))))
-        (object-file (%library-object-path lib))
-        (c-file (or c-output-file (%library-c-path lib))))
-    (for-each (lambda (f) (when (not (file-exists? f))
-                           (err "File " f
-                                " not found -- included in library definition "
-                                (object->string lib))))
-              scm-files)
-    (let ((compile?
-           (or force
-               (any (lambda (f) (and f ((newer-than? object-file) f)))
-                    scm-files))))
-      (when compile?
-            (ssrun#compile-to-c lib
-                                cond-expand-features: cond-expand-features
-                                compiler-options: compiler-options
-                                expander: expander
-                                output: c-output-file
-                                verbose: verbose)
-            (ssrun#compile-c-to-o c-file
-                                  output: o-output-file
-                                  environment-options: environment-options
-                                  cc-options: cc-options
-                                  ld-options: ld-options
-                                  delete-c: delete-c
-                                  verbose: verbose)))))
+  (let ((c-file (or c-output-file (%library-c-path lib)))
+        (compile? (or force (%library-updated? lib))))
+    (when compile?
+          (ssrun#compile-to-c lib
+                              cond-expand-features: cond-expand-features
+                              compiler-options: compiler-options
+                              expander: expander
+                              output: c-output-file
+                              verbose: verbose)
+          (ssrun#compile-c-to-o c-file
+                                output: o-output-file
+                                environment-options: environment-options
+                                cc-options: cc-options
+                                ld-options: ld-options
+                                delete-c: delete-c
+                                verbose: verbose))))
 
 ;;! Compile to exe
 ;; TODO: pending update

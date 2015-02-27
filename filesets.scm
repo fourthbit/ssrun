@@ -14,14 +14,17 @@
 (define (newer-than? filename1 #!key
                      (dir (current-build-directory)))
   (lambda (filename2)
-    (or (not (file-exists? filename1))
-        (> (time->seconds (file-last-modification-time filename2))
-           (time->seconds (file-last-modification-time filename1))))))
+    (let ((filename1 (string-append
+                      dir
+                      (path-strip-extension (path-strip-directory filename2)))))
+      (or (not (file-exists? filename1))
+          (> (time->seconds (file-last-modification-time filename2))
+             (time->seconds (file-last-modification-time filename1)))))))
 
 (define (newer-than/extension? ext #!key
                                (dir (current-build-directory)))
   (lambda (filename2)
-    (let ((filename1 (string-append 
+    (let ((filename1 (string-append
                       dir
                       (path-strip-extension (path-strip-directory filename2))
                       ext)))
@@ -47,19 +50,19 @@
   (lambda (t)
     (lambda (name)
       (fn (t name)))))
-    
+
 (define f-not (shift not))
 
 (define (any? name) #t)
 (define (none? name) #f)
 
-(##define (fileset #!key 
+(##define (fileset #!key
                    (dir (current-directory))
                    (test any?)
                    (recursive #f))
   (let ((dir (path-add-trailing-directory-separator dir)))
-    (reduce append '() 
-            (map (lambda (name) 
+    (reduce append '()
+            (map (lambda (name)
                    (let* ((f (string-append dir name))
                           (childs (if (and recursive (directory? f))
                                       (fileset dir: (path-add-trailing-directory-separator f)
@@ -117,7 +120,7 @@
                                     recursive: recursive
                                     force: force))
                           (fileset dir: dir recursive: #t test: directory?)))
-  (if (null? (fileset dir: dir recursive: #t test: any?)) 
+  (if (null? (fileset dir: dir recursive: #t test: any?))
       (##delete-directory dir)
       (warn dir " is not empty")))
 
@@ -166,7 +169,7 @@
 
 (define (ssrun#copy-files files dest #!key (force #t))
   (for-each
-   (lambda (file) 
+   (lambda (file)
      (ssrun#copy-file file
                      (string-append (path-strip-trailing-directory-separator dest)
                                     "/"
