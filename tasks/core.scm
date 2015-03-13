@@ -68,10 +68,11 @@
           (%library-read-syntax library)
           (let* ((includes (or (and library-sld includes)
                                (list (%find-library-scm library))))
-                 (input-file (ssrun#merge-files includes
-                                                (%library-merged-scm-path library)
-                                                prepend-code: (%library-make-prelude library)
-                                                verbose: verbose))
+                 (merged-input-file (ssrun#merge-files
+                                     includes
+                                     (%library-merged-scm-path library)
+                                     prepend-code: (%library-make-prelude library)
+                                     verbose: verbose))
                  (compilation-environment-code
                   `(,@(generate-cond-expand-code (cons 'compile-to-c cond-expand-features))
                     (%load-library ',library only-syntax: #t))))
@@ -86,12 +87,11 @@
                         `(,@compilation-environment-code
                           (syntax-case-debug ,verbose)
                           (or (compile-file-to-target
-                               ,input-file
+                               ,merged-input-file
                                output: ,output-file
                                options: ',compiler-options)
                               (exit 1))))))
-                  ;; Delete if merged file is generated
-                  (if (> (length includes) 1) (delete-file input-file))
+                  (delete-file merged-input-file)
                   (if (not (zero? process-result))
                       (err "ssrun#compile-to-c: error compiling generated C file in child process")))))))
         ((gambit)
