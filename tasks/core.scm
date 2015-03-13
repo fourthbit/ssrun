@@ -63,37 +63,37 @@
                      (cond-expand more-clauses ...))))))))
       (case expander
         ((syntax-case)
-         (let* ((includes (or (and library-sld
-                                   (%library-read-syntax&find-includes library #f))
-                              (list (%find-library-scm library))))
-                (input-file (if (= 1 (length includes))
-                                (car includes)
-                                (ssrun#merge-files
-                                 includes
-                                 (%library-merged-scm-path library)
-                                 verbose: verbose)))
-                (compilation-environment-code
-                 `(,@(generate-cond-expand-code (cons 'compile-to-c cond-expand-features))
-                   (%load-library ',library only-syntax: #t))))
-           (if verbose
-               (begin
-                 (info/color 'light-green "compilation environment code:")
-                 (for-each pp compilation-environment-code)))
-           ;; Compile
-           (if verbose (info/color 'light-green "syntax-case expansion:"))
-           (or (let ((process-result
-                      (gambit-eval-here
-                       `(,@compilation-environment-code
-                         (syntax-case-debug ,verbose)
-                         (or (compile-file-to-target
-                              ,input-file
-                              output: ,output-file
-                              options: ',compiler-options)
-                             (exit 1))))))
-                 ;; Delete if merged file is generated
-                 (if (> (length includes) 1) (delete-file input-file))
-                 (if (not (zero? process-result))
-                     (err "ssrun#compile-to-c: error compiling generated C file in child process"))))))
+         (receive
+          (imports exports includes _)
+          (%library-read-syntax library)
+          (let* ((includes (or (and library-sld includes)
+                               (list (%find-library-scm library))))
+                 (input-file (ssrun#merge-files includes
+                                                (%library-merged-scm-path library)
+                                                prepend-code: (%library-make-prelude library)
+                                                verbose: verbose))
+                 (compilation-environment-code
+                  `(,@(generate-cond-expand-code (cons 'compile-to-c cond-expand-features))
+                    (%load-library ',library only-syntax: #t))))
+            (if verbose
+                (begin
+                  (info/color 'light-green "compilation environment code:")
+                  (for-each pp compilation-environment-code)))
+            ;; Compile
+            (if verbose (info/color 'light-green "syntax-case expansion:"))
+            (or (let ((process-result
+                       (gambit-eval-here
+                        `(,@compilation-environment-code
+                          (syntax-case-debug ,verbose)
+                          (or (compile-file-to-target
+                               ,input-file
+                               output: ,output-file
+                               options: ',compiler-options)
+                              (exit 1))))))
+                  ;; Delete if merged file is generated
+                  (if (> (length includes) 1) (delete-file input-file))
+                  (if (not (zero? process-result))
+                      (err "ssrun#compile-to-c: error compiling generated C file in child process")))))))
         ((gambit)
          (let ((input-file (%find-library-scm library))
                (compilation-environment-code
@@ -115,7 +115,8 @@
         (else (err "Unknown expander"))))
     output-file))
 
-(define (ssrun#merge-files files output-file #!key verbose)
+;;! Merge several files into one, optionally prepending/appending code
+(define (ssrun#merge-files files output-file #!key prepend-code append-code verbose)
   (if (file-exists? output-file) (delete-file output-file))
   (for-each
    (lambda (input-file)
@@ -124,7 +125,9 @@
                  (lambda (op)
                    ;; Necessary for include macro to be aware of current location
                    (current-directory (path-directory input-file))
-                   (for-each (lambda (form) (pp form op)) (read-all ip)))))))
+                   (if prepend-code (pp prepend-code op))
+                   (for-each (lambda (form) (pp form op)) (read-all ip))
+                   (if append-code (pp append-code op)))))))
    files)
   (when verbose
         (println "merging files:")
