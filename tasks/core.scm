@@ -71,7 +71,7 @@
                  (merged-input-file (ssrun#merge-files
                                      includes
                                      (%library-merged-scm-path library)
-                                     prepend-code: (%library-make-prelude library)
+                                     prepend-code: (cons '##begin (%library-make-prelude library))
                                      verbose: verbose))
                  (compilation-environment-code
                   `(,@(generate-cond-expand-code (cons 'compile-to-c cond-expand-features))
@@ -392,7 +392,7 @@
 ;;! Run a file
 (define (ssrun#run-file file)
   (gambit-eval-here
-   `((expander:include ,(string-append file)))))
+   `((include ,(string-append file)))))
 
 ;;! Run all files in a directory
 (define (ssrun#run-all-files #!optional (dir (current-directory)))
