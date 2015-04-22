@@ -1,5 +1,5 @@
 ;;; Copyright (c) 2014 by Álvaro Castro Castilla
-;;; Extensions for Sake, to use with Fusion projects
+;;; Extensions for SSrun, to use with Fusion projects
 
 (include "macros.scm")
 
@@ -47,7 +47,7 @@
 
 (define ios-simulator-sdk-directory
   (make-parameter
-   (when (eq? 'darwin (sake#host-platform))
+   (when (eq? 'darwin (ssrun#host-platform))
          (let* ((sdk-dir-process
                  (open-process (list path: (string-append (%sphere-path 'fusion) "tools/get-ios-sdk-dir")
                                      arguments: '("iPhoneSimulator"))))
@@ -62,14 +62,14 @@
 
 (define xcodebuild-path
   (make-parameter
-   (when (eq? 'darwin (sake#host-platform))
+   (when (eq? 'darwin (ssrun#host-platform))
          (if (zero? (shell-command "xcodebuild -usage &>/dev/null"))
              "xcodebuild"
              #f))))
 
 (define ios-sim-path
   (make-parameter
-   (when (eq? 'darwin (sake#host-platform))
+   (when (eq? 'darwin (ssrun#host-platform))
          (if (zero? (shell-command "ios-sim --version &>/dev/null"))
              "ios-sim"
              #f))))
@@ -92,7 +92,7 @@
 (define (fusion#ios-clean)
   (define (delete-if-exists dir)
     (when (file-exists? dir)
-          (sake#delete-file dir recursive: #t force: #t)))
+          (ssrun#delete-file dir recursive: #t force: #t)))
   ;;(delete-if-exists (ios-assets-directory))
   (delete-if-exists (ios-build-directory))
   (delete-if-exists (string-append (ios-source-directory) "libspheres.a"))
@@ -222,7 +222,7 @@
                   (string-append (%module-path-src m) (%module-filename-scm m)))
                  (begin
                    (set! something-generated? #t)
-                   (sake#compile-to-c m
+                   (ssrun#compile-to-c m
                                       cond-expand-features: (cons 'ios cond-expand-features)
                                       compiler-options: compiler-options
                                       verbose: verbose
@@ -230,7 +230,7 @@
          modules-to-compile)
         (when something-generated?
               (info/color 'blue "new C files generated")
-              (sake#link-incremental link-file all-modules
+              (ssrun#link-incremental link-file all-modules
                                            version: version
                                            dir: (ios-build-directory)))
         (set! something-generated? #f)
@@ -321,17 +321,17 @@
                   (string-append (%module-path-src m) (%module-filename-scm m)))
                  (begin
                    (set! something-generated? #t)
-                   (sake#compile-to-c m
-                                      cond-expand-features: (cons 'ios cond-expand-features)
-                                      compiler-options: compiler-options
-                                      verbose: verbose
-                                      output: output-c-file)))))
+                   (ssrun#compile-to-c m
+                                       cond-expand-features: (cons 'ios cond-expand-features)
+                                       compiler-options: compiler-options
+                                       verbose: verbose
+                                       output: output-c-file)))))
          modules-to-compile)
         (when something-generated?
               (info/color 'blue "new C files generated")
-              (sake#link-flat link-file all-modules
-                              version: version
-                              dir: (ios-build-directory)))
+              (ssrun#link-flat link-file all-modules
+                               version: version
+                               dir: (ios-build-directory)))
         ;; Compile objects
         (set! something-generated? #f)
         (let ((o-files
@@ -400,7 +400,7 @@
   ;; Syntax-case for the REPL
   (let ((syntax-case-file (string-append (ios-spheres-directory) "core/lib/syntax-case.o1")))
     (unless (file-exists? syntax-case-file)
-            (sake#copy-file (string-append (%sphere-path 'fusion) "ios/syntax-case.o1")
+            (ssrun#copy-file (string-append (%sphere-path 'fusion) "ios/syntax-case.o1")
                             syntax-case-file)))
   ;; Copy dependencies in source form so they can be accessed from the REPL
   (let* ((current-sphere (%current-sphere))
@@ -422,6 +422,6 @@
                (if (file-exists? target-source)
                    (info/color 'brown "updated file " filename)
                    (begin (info/color 'brown "new file " filename)
-                          (sake#make-directory origin-source-directory)))
-               (sake#copy-file origin-source target-source))))
+                          (ssrun#make-directory origin-source-directory)))
+               (ssrun#copy-file origin-source target-source))))
      selected-modules)))
