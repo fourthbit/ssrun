@@ -1,6 +1,7 @@
 ;;!!! Utilities and procedures to be used within ssrunfiles
 ;; .author Alvaro Castro-Castilla, 2012-2014
 
+(include "macros.scm")
 
 ;;! Generate a C file from a Scheme library
 ;; .argument version: generate module version with specific features

@@ -33,7 +33,7 @@
 
 (define ios-device-sdk-directory
   (make-parameter
-   (when (eq? 'darwin (sake#host-platform))
+   (when (eq? 'darwin (ssrun#host-platform))
          (let* ((sdk-dir-process
                  (open-process (list path: (string-append (%sphere-path 'fusion) "tools/get-ios-sdk-dir")
                                      arguments: '("iPhoneOS"))))
