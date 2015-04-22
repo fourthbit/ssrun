@@ -25,32 +25,31 @@
 (define (task-run task #!key arguments)
   (or (task-executed? task)
       (begin
-       (map task-run (task-depends task))
-       (begin
-         (display (string-append "*** INFO -- \033[01;34mrunning task "
-                                 (symbol->string (task-name task))
-                                 "...\033[00m "))
-         ;; Print arguements
-         (if arguments
-             (begin (display (string-append " ("))
-                    (let recur ((expected (task-parameters task))
-                                (provided arguments))
-                      (cond ((null? expected)
-                             '())
-                            ((null? provided)
-                             (display (car expected)) (display ": ") (display "<not provided>")
-                             (if (not (null? (cdr expected))) (display ", "))
-                             (recur (cdr expected) '()))
-                            (else
-                             (display (car expected)) (display ": ") (display (car provided))
-                             (if (not (null? (cdr expected))) (display ", "))
-                             (recur (cdr expected) (cdr provided)))))
-                    (display ") \n"))
-             (display "\n"))
-         ;; Run the task
-         (task-force-run task arguments: arguments)
-         (display "\033[01;34mdone\033[00m\n")
-         #t))))
+        (map (lambda (t) (task-run t arguments: '())) (task-depends task))
+        (display (string-append "*** INFO -- \033[01;34mrunning task "
+                                (symbol->string (task-name task))
+                                "...\033[00m "))
+        ;; Print arguements
+        (if arguments
+            (begin (display (string-append " ("))
+                   (let recur ((expected (task-parameters task))
+                               (provided arguments))
+                     (cond ((null? expected)
+                            '())
+                           ((null? provided)
+                            (display (car expected)) (display ": ") (display "<not provided>")
+                            (if (not (null? (cdr expected))) (display ", "))
+                            (recur (cdr expected) '()))
+                           (else
+                            (display (car expected)) (display ": ") (display (car provided))
+                            (if (not (null? (cdr expected))) (display ", "))
+                            (recur (cdr expected) (cdr provided)))))
+                   (display ") \n"))
+            (display "\n"))
+        ;; Run the task
+        (task-force-run task arguments: arguments)
+        (display "\033[01;34mdone\033[00m\n")
+        #t)))
 
 ;; bound dynamically to the local task
 (define current-task (make-parameter #f))
