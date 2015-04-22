@@ -190,7 +190,7 @@
 (define (fusion#android-clean)
   (define (delete-if-exists dir)
     (when (file-exists? dir)
-          (sake#delete-directory dir recursive: #t force: #t)))
+          (ssrun#delete-directory dir recursive: #t force: #t)))
   ;;(delete-if-exists (android-assets-directory))
   (delete-if-exists (android-src-directory))
   (delete-if-exists (android-jni-directory))
@@ -214,7 +214,7 @@
                     " update project --path " (android-directory)
                     " --target " android-platform-str))
     (when (file-exists? (android-toolchain-directory))
-          (sake#delete-directory (android-toolchain-directory) recursive: #t))
+          (ssrun#delete-directory (android-toolchain-directory) recursive: #t))
     (shell-command
      (string-append (android-ndk-path) "build/tools/make-standalone-toolchain.sh"
                     " --platform=\"" android-platform-str "\""
@@ -254,7 +254,7 @@
                                       parameters))
                                values)
                               f)))
-                    (sake#copy-file source-file destination-file force: #t)))))
+                    (ssrun#copy-file source-file destination-file force: #t)))))
          ((directory)
           (make-directory (string-append destination-path relative-path file))
           (recur (string-append relative-path file "/")))))
@@ -400,10 +400,10 @@
                          (string-append (%module-path-src m) (%module-filename-scm m)))
                         (begin
                           (set! something-generated? #t)
-                          (sake#compile-to-c m
-                                             cond-expand-features: (cons 'android cond-expand-features)
-                                             compiler-options: compiler-options
-                                             verbose: verbose))))
+                          (ssrun#compile-to-c m
+                                              cond-expand-features: (cons 'android cond-expand-features)
+                                              compiler-options: compiler-options
+                                              verbose: verbose))))
                   modules-to-compile)
         (if something-generated?
             (info/color 'blue "generating C files")
@@ -419,10 +419,10 @@
          all-modules)
         ;; Generate link file
         (if something-generated?
-            (sake#link-incremental link-file all-modules
-                                   dir: (android-build-directory)
-                                   version: version
-                                   verbose: verbose))))
+            (ssrun#link-incremental link-file all-modules
+                                    dir: (android-build-directory)
+                                    version: version
+                                    verbose: verbose))))
     (info/color 'blue (string-append "compiling JNI C/Scheme code (with "
                                      (if (= num-threads +inf.0) "MAX" (number->string num-threads))
                                      " threads)"))
@@ -436,8 +436,8 @@
                           " -C " (android-directory) " &>ndk-log")))
       (if verbose (println ndk-command-str))
       (unless (zero? (shell-command ndk-command-str))
-              (err "error building native code\n\n" (sake#read-file "ndk-log"))))
-    (if verbose (display (sake#read-file "ndk-log")))
+              (err "error building native code\n\n" (ssrun#read-file "ndk-log"))))
+    (if verbose (display (ssrun#read-file "ndk-log")))
     (delete-file "ndk-log")
     (info/color 'blue "compiling Java code")
     ;; Call "ant"
@@ -493,18 +493,18 @@
              (when ((newer-than? output-c-file)
                     (string-append (%module-path-src m) (%module-filename-scm m)))
                    (set! something-generated? #t)
-                   (sake#compile-to-c m
-                                      cond-expand-features: (cons 'android cond-expand-features)
-                                      compiler-options: compiler-options
-                                      verbose: verbose
-                                      output: output-c-file))))
+                   (ssrun#compile-to-c m
+                                       cond-expand-features: (cons 'android cond-expand-features)
+                                       compiler-options: compiler-options
+                                       verbose: verbose
+                                       output: output-c-file))))
          modules-to-compile)
         (when (or something-generated? (not (file-exists? (string-append (android-build-directory) link-file))))
               (info/color 'blue "new C files generated")
-              (sake#link-flat link-file all-modules
-                              dir: (android-build-directory)
-                              version: version
-                              verbose: verbose))
+              (ssrun#link-flat link-file all-modules
+                               dir: (android-build-directory)
+                               version: version
+                               verbose: verbose))
         ;; Compile objects
         (set! something-generated? #f)
         (let ((o-files

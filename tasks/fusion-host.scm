@@ -66,14 +66,14 @@
   (##cond-expand-features (cons 'host (append cond-expand-features (##cond-expand-features))))
   ;; Checks
   (when merge-modules (err "fusion#host-compile-exe: merge-modules options is not yet implemented"))
-  (sake#compile-to-exe exe-name
-                       (list main-module)
-                       compiler-options: compiler-options
-                       override-cc-options: override-cc-options
-                       override-ld-options: override-ld-options
-                       version: version
-                       cond-expand-features: (cons 'host cond-expand-features)
-                       verbose: verbose))
+  (ssrun#compile-to-exe exe-name
+                        (list main-module)
+                        compiler-options: compiler-options
+                        override-cc-options: override-cc-options
+                        override-ld-options: override-ld-options
+                        version: version
+                        cond-expand-features: (cons 'host cond-expand-features)
+                        verbose: verbose))
 
 ;;! Generate a loadable object from a module and its dependencies for the host OS
 (define (fusion#host-compile-loadable-set output-file
@@ -109,17 +109,17 @@
               (string-append (%module-path-src m) (%module-filename-scm m)))
              (begin
                (set! something-generated? #t)
-               (sake#compile-to-c m
-                                  cond-expand-features: (cons 'host cond-expand-features)
-                                  compiler-options: compiler-options
-                                  verbose: verbose
-                                  output: output-c-file)))))
+               (ssrun#compile-to-c m
+                                   cond-expand-features: (cons 'host cond-expand-features)
+                                   compiler-options: compiler-options
+                                   verbose: verbose
+                                   output: output-c-file)))))
      modules-to-compile)
     (when something-generated?
           (info/color 'blue "new C files generated")
-          (sake#link-flat (string-append (current-build-directory) link-file)
-                          all-modules
-                          verbose: verbose))
+          (ssrun#link-flat (string-append (current-build-directory) link-file)
+                           all-modules
+                           verbose: verbose))
     ;; Compile objects
     (set! something-generated? #f)
     (let ((o-files
@@ -130,14 +130,14 @@
                                   (info/color 'blue "compiling updated C files:"))
                           (info/color 'brown (string-append " >>>  " f))
                           (set! something-generated? #t)
-                          (sake#compile-c-to-o f
-                                               output: output-o-file
-                                               options: '(obj)
-                                               cc-options: (string-append
-                                                            "-D___DYNAMIC "
-                                                            ;; Append cc options except for the link file
-                                                            (if m (%process-cc-options (%module-shallow-dependencies-cc-options m)) ""))
-                                               verbose: verbose)
+                          (ssrun#compile-c-to-o f
+                                                output: output-o-file
+                                                options: '(obj)
+                                                cc-options: (string-append
+                                                             "-D___DYNAMIC "
+                                                             ;; Append cc options except for the link file
+                                                             (if m (%process-cc-options (%module-shallow-dependencies-cc-options m)) ""))
+                                                verbose: verbose)
                           output-o-file)))
                 all-c-files/link
                 (append all-modules '(#f))))) ;; The modules + a #f for the link file
@@ -145,7 +145,7 @@
       (info/color 'green "compiling C/Scheme code into a loadable object")
       (link-files files: o-files
                   output: (string-append (current-bin-directory) output-file)
-                  options: (case (sake#host-platform)
+                  options: (case (ssrun#host-platform)
                              ((linux) " -shared")
                              ((osx) (string-append
                                      " -bundle -arch "
