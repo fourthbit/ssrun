@@ -1,6 +1,8 @@
 ;;; Copyright (c) 2012-2014, Álvaro Castro-Castilla
 ;;; Extensions for Sake (Android)
 
+(include "macros.scm")
+
 ;;------------------------------------------------------------------------------
 ;;!! Setup and initialization
 

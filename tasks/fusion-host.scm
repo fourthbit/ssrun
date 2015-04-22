@@ -1,6 +1,7 @@
 ;;; Copyright (c) 2012-2014, Álvaro Castro-Castilla
 ;;; Extensions for Sake (Host platform: Linux / OSX)
 
+(include "macros.scm")
 
 (define (fusion#host-run-interpreted main-module #!key
                                      (version '())

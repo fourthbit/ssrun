@@ -1,6 +1,8 @@
 ;;; Copyright (c) 2014 by Álvaro Castro Castilla
 ;;; Extensions for Sake, to use with Fusion projects
 
+(include "macros.scm")
+
 (define ios-directory
   (make-parameter "ios/"))
 
