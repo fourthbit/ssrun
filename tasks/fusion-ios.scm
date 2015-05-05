@@ -35,7 +35,7 @@
 
 (define ios-device-sdk-directory
   (make-parameter
-   (when (eq? 'darwin (ssrun#host-platform))
+   (when (eq? 'osx (ssrun#host-platform))
          (let* ((sdk-dir-process
                  (open-process (list path: (string-append (%sphere-path 'fusion) "tools/get-ios-sdk-dir")
                                      arguments: '("iPhoneOS"))))
@@ -47,7 +47,7 @@
 
 (define ios-simulator-sdk-directory
   (make-parameter
-   (when (eq? 'darwin (ssrun#host-platform))
+   (when (eq? 'osx (ssrun#host-platform))
          (let* ((sdk-dir-process
                  (open-process (list path: (string-append (%sphere-path 'fusion) "tools/get-ios-sdk-dir")
                                      arguments: '("iPhoneSimulator"))))
@@ -62,14 +62,14 @@
 
 (define xcodebuild-path
   (make-parameter
-   (when (eq? 'darwin (ssrun#host-platform))
+   (when (eq? 'osx (ssrun#host-platform))
          (if (zero? (shell-command "xcodebuild -usage &>/dev/null"))
              "xcodebuild"
              #f))))
 
 (define ios-sim-path
   (make-parameter
-   (when (eq? 'darwin (ssrun#host-platform))
+   (when (eq? 'osx (ssrun#host-platform))
          (if (zero? (shell-command "ios-sim --version &>/dev/null"))
              "ios-sim"
              #f))))

@@ -4,14 +4,25 @@
   (ssrun#delete-file "ssrun.c")
   (gambit-compile-file "ssrun.scm" output: "ssrun" options: "-exe"))
 
+(define ssrun-exec "ssrun")
+(define ssrun-path "~~/bin/ssrun")
+(define mingw? #f)
+
 (define-task install ()
+  (case (caddr (system-type))
+    ((mingw32 mingw64)
+     (set! mingw? #t)
+     (set! ssrun-exec (string-append ssrun-exec ".exe"))
+     (set! ssrun-path (string-append ssrun-path ".exe"))))
   ;; Install SSRun program
   (info/color 'green "Installing SSRun...")
-  (ssrun#delete-file "~~/bin/ssrun")
-  (ssrun#copy-file "ssrun" "~~/bin/ssrun")
+  (ssrun#delete-file ssrun-path)
+  (ssrun#copy-file ssrun-exec ssrun-path)
   ;; Create symbolic link in /usr/bin
-  (ssrun#delete-file "/usr/bin/ssrun")
-  (create-symbolic-link "~~/bin/ssrun" "/usr/bin/ssrun")
+  (if (not mingw?)
+      (begin
+	(ssrun#delete-file (string-append "/usr/bin/" ssrun-exec))
+	(create-symbolic-link ssrun-path (string-append "/usr/bin/" ssrun-exec))))
   ;; Install basic SSRun tasks
   (info/color 'green "Installing SSRun tasks...")
   (ssrun#make-directory "~~lib/ssrun")
