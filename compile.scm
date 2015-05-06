@@ -1,4 +1,6 @@
-(define gambit-compiler (make-parameter (path-expand "~~/bin/gsc")))
+(define gambit-compiler (make-parameter
+			 ;; This append fixes an issue with MinGW paths
+			 (string-append (path-expand "~~") "/bin/gsc")))
 
 (define c-compiler (make-parameter "gcc"))
 

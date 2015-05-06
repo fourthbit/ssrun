@@ -1,5 +1,5 @@
-;;; Copyright (c) 2014 by Álvaro Castro Castilla
-;;; Extensions for SSrun, to use with Fusion projects
+;;; Copyright (c) 2015 by Álvaro Castro Castilla
+;;; Extensions for SSrun
 
 (include "macros.scm")
 
@@ -35,19 +35,19 @@
 
 (define ios-device-sdk-directory
   (make-parameter
-   (lambda () (when (eq? 'darwin (ssrun#host-platform))
-               (let* ((sdk-dir-process
-                       (open-process (list path: (string-append (%sphere-path 'fusion) "tools/get-ios-sdk-dir")
-                                           arguments: '("iPhoneOS"))))
-                      (result (read-line sdk-dir-process)))
-                 (unless (zero? (process-status sdk-dir-process))
-                         (err "fusion#compile-ios-app: error running script tools/get_ios_sdk_dir"))
-                 (close-port sdk-dir-process)
-                 result)))))
+   (when (eq? 'osx (ssrun#host-platform))
+         (let* ((sdk-dir-process
+                 (open-process (list path: (string-append (%sphere-path 'fusion) "tools/get-ios-sdk-dir")
+                                     arguments: '("iPhoneOS"))))
+                (result (read-line sdk-dir-process)))
+           (unless (zero? (process-status sdk-dir-process))
+                   (err "fusion#compile-ios-app: error running script tools/get_ios_sdk_dir"))
+           (close-port sdk-dir-process)
+           result))))
 
 (define ios-simulator-sdk-directory
   (make-parameter
-   (when (eq? 'darwin (ssrun#host-platform))
+   (when (eq? 'osx (ssrun#host-platform))
          (let* ((sdk-dir-process
                  (open-process (list path: (string-append (%sphere-path 'fusion) "tools/get-ios-sdk-dir")
                                      arguments: '("iPhoneSimulator"))))
@@ -62,14 +62,14 @@
 
 (define xcodebuild-path
   (make-parameter
-   (when (eq? 'darwin (ssrun#host-platform))
+   (when (eq? 'osx (ssrun#host-platform))
          (if (zero? (shell-command "xcodebuild -usage &>/dev/null"))
              "xcodebuild"
              #f))))
 
 (define ios-sim-path
   (make-parameter
-   (when (eq? 'darwin (ssrun#host-platform))
+   (when (eq? 'osx (ssrun#host-platform))
          (if (zero? (shell-command "ios-sim --version &>/dev/null"))
              "ios-sim"
              #f))))

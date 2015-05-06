@@ -423,7 +423,11 @@
           ((and (> (string-length sys) 5)
                 (string=? "darwin" (substring sys 0 6)))
            'osx)
-          (else (err "ssrun#host-platform -> can't detect current platform")))))
+	  ((or (string=? sys "mingw32") (string=? sys "mingw64"))
+           'windows)
+          (else (err (string-append
+		      "ssrun#host-platform -> can't detect current platform: "
+		      (object->string sys)))))))
 
 ;;! Parallel for-each, suitable mainly for parallel compilation, which spawns external processes
 (define (ssrun#parallel-for-each
