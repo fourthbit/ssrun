@@ -92,7 +92,9 @@
                                 "current directory."
                                 dir))))
     (eval `(begin
-             (include "~/.gambcini")
+             ,(if (file-exists? "~/.gambcini")
+                  '(include "~/.gambcini")
+                  #!void)
              ,(if (file-exists? "ssrunlib#.scm")
                   '(include "ssrunlib#.scm")
                   '(include "~~lib/ssrun/ssrunlib#.scm"))
