@@ -35,15 +35,15 @@
 
 (define ios-device-sdk-directory
   (make-parameter
-   (when (eq? 'darwin (ssrun#host-platform))
-         (let* ((sdk-dir-process
-                 (open-process (list path: (string-append (%sphere-path 'fusion) "tools/get-ios-sdk-dir")
-                                     arguments: '("iPhoneOS"))))
-                (result (read-line sdk-dir-process)))
-           (unless (zero? (process-status sdk-dir-process))
-                   (err "fusion#compile-ios-app: error running script tools/get_ios_sdk_dir"))
-           (close-port sdk-dir-process)
-           result))))
+   (lambda () (when (eq? 'darwin (ssrun#host-platform))
+               (let* ((sdk-dir-process
+                       (open-process (list path: (string-append (%sphere-path 'fusion) "tools/get-ios-sdk-dir")
+                                           arguments: '("iPhoneOS"))))
+                      (result (read-line sdk-dir-process)))
+                 (unless (zero? (process-status sdk-dir-process))
+                         (err "fusion#compile-ios-app: error running script tools/get_ios_sdk_dir"))
+                 (close-port sdk-dir-process)
+                 result)))))
 
 (define ios-simulator-sdk-directory
   (make-parameter

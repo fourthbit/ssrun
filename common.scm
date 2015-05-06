@@ -78,7 +78,7 @@
 ;;-------------------------------------------------------------------------------
 ;; Main
 
-(define (ssrun #!key 
+(define (ssrun #!key
                (file "ssrunfile.scm")
                (tasks '(all))
                extensions-path
@@ -96,13 +96,7 @@
              ,(if (file-exists? "ssrunlib#.scm")
                   '(include "ssrunlib#.scm")
                   '(include "~~lib/ssrun/ssrunlib#.scm"))
-             ,(if extensions
-                  (let ((extensions
-                         (map (lambda (f) (string-append (or extensions-path (current-extensions-path)) f))
-                              (directory-files
-                               (list path: (or extensions-path (current-extensions-path))
-                                     ignore-hidden: 'dot-and-dot-dot)))))
-                    `(begin ,@(map (lambda (e) `(include ,e)) extensions))))
+             (current-directory ,(current-extensions-path))
              (include ,file)
              ,@(map (lambda (t)
                       (let* ((task&args t)
