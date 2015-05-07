@@ -1,13 +1,13 @@
-(##namespace ("ssrun#" 
+(##namespace ("ssrun#"
               make-task
               task?
               task-name
               task-parameters
-              task-descriptino
-              task-depends 
+              task-description
+              task-depends
               task-handler
               task-executed?
-              task 
+              task
               task-run
               define-task
               current-task
@@ -18,12 +18,12 @@
 ;;   (let((name (gensym 'task))
 ;;        (self '(gensym 'self)))
 ;;     `(let((,self '()))
-;;        (set! ,self 
+;;        (set! ,self
 ;;              (make-task
-;;               ,name 
-;;               (list ,@depends) 
+;;               ,name
+;;               (list ,@depends)
 ;;               ,(if (and (pair? body) (string? (car body))) (car body) (symbol->string name))
-;;               (lambda () 
+;;               (lambda ()
 ;;                 (parameterize
 ;;                  ((current-task ,self))
 ;;                  ,@body))))
