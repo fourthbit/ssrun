@@ -393,7 +393,7 @@
 ;;! Run a file
 (define (ssrun#run-file file)
   (gambit-eval-here
-   `((include ,(string-append file)))))
+   `((include ,file))))
 
 ;;! Run all files in a directory
 (define (ssrun#run-all-files #!optional (dir (current-directory)))

@@ -98,7 +98,6 @@
              ,(if (file-exists? "ssrunlib#.scm")
                   '(include "ssrunlib#.scm")
                   '(include "~~lib/ssrun/ssrunlib#.scm"))
-             (current-directory ,(current-extensions-path))
              (include ,file)
              ,@(map (lambda (t)
                       (let* ((task&args t)
