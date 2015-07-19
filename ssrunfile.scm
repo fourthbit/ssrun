@@ -19,7 +19,9 @@
   (ssrun#delete-file ssrun-path)
   (ssrun#copy-file ssrun-exec ssrun-path)
   ;; Create symbolic link in /usr/bin
-  (if (not mingw?)
+  (if (not ;; unless we are under MinGW or Travis environment
+       (or mingw?
+           (with-exception-handler (lambda (e) #f) (lambda () (getenv "TRAVIS_BUILD_DIR") #t))))
       (begin
 	(ssrun#delete-file (string-append "/usr/bin/" ssrun-exec))
 	(create-symbolic-link ssrun-path (string-append "/usr/bin/" ssrun-exec))))
@@ -31,7 +33,7 @@
   (ssrun#make-directory "~~lib/ssrun/tasks")
   (ssrun#copy-files (fileset dir: "tasks" test: (extension=? ".scm"))
                     "~~lib/ssrun/tasks"))
-  
+
 (define-task (test first-param second-param third-param) ()
   (println first-param)
   (println second-param)
