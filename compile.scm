@@ -2,14 +2,27 @@
 			 ;; This append fixes an issue with MinGW paths
 			 (string-append (path-expand "~~") "/bin/gsc")))
 
-(define c-compiler (make-parameter "gcc"))
+(define c-compiler
+  (make-parameter
+   (let ((sys (symbol->string (caddr (system-type)))))
+     (cond ((and (> (string-length sys) 4)
+                 (string=? "linux" (substring sys 0 5)))
+            "gcc")
+           ((and (> (string-length sys) 5)
+                 (string=? "darwin" (substring sys 0 6)))
+            "gcc-5") ; Make sure we use GCC instead of Clang
+           ((or (string=? sys "mingw32") (string=? sys "mingw64"))
+            "gcc")
+           (else (err (string-append
+                       "ssrun#host-platform -> can't detect current platform: "
+                       (object->string sys))))))))
 
 (define linker (make-parameter "ld"))
 
 (##define (gambit-compile-file
-           name 
-           #!key 
-           (output (current-build-directory)) 
+           name
+           #!key
+           (output (current-build-directory))
            (options ""))
   (info "compiling " name)
   (shell-command
@@ -17,8 +30,8 @@
 
 (##define (gambit-compile-files
            #!key
-           (files (fileset test: (f-and (extension=? ".scm") 
-                                        (f-not (ends-with? "#.scm")) 
+           (files (fileset test: (f-and (extension=? ".scm")
+                                        (f-not (ends-with? "#.scm"))
                                         (newer-than/extension? ".c"))
                            recursive: #t))
            (output (current-build-directory))
@@ -28,17 +41,17 @@
    files))
 
 ;; (##define (c-compile-file
-;;            name 
-;;            #!key 
-;;            (output (current-build-directory)) 
+;;            name
+;;            #!key
+;;            (output (current-build-directory))
 ;;            (options ""))
 ;;   (shell-command
 ;;    (string-append (c-compiler) " -o " output " " options " " name)))
 
 ;; (##define (c-compile-files
 ;;            #!key
-;;            (files (fileset test: (f-and (extension=? ".scm") 
-;;                                         (f-not (ends-with? "#.scm")) 
+;;            (files (fileset test: (f-and (extension=? ".scm")
+;;                                         (f-not (ends-with? "#.scm"))
 ;;                                         (newer-than/extension? ".c"))
 ;;                            recursive: #t))
 ;;            (output (current-build-directory))
