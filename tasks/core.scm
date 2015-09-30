@@ -277,7 +277,7 @@
                                         " -o" ,output
                                         " -I" (path-expand "~~include") " "
                                         ,cc-options
-                                        " -L" (path-expand "~~lib") " -lgambc -lm -ldl -lutil "
+                                        " -L" (path-expand "~~lib") " -lgambit -lm -ldl -lutil "
                                         ,ld-options)))
            (if (not link-file) (err "error generating link file"))
            (if ,verbose (begin (pp link-file) (pp gcc-cli)))
