@@ -12,6 +12,7 @@
                             (cond-expand-features '())
                             (compiler-options '())
                             (expander 'syntax-case)
+                            (delete-merged #t)
                             output
                             verbose)
   (let* ((library (if (string? library-or-file)
@@ -92,7 +93,8 @@
                                output: ,output-file
                                options: ',compiler-options)
                               (exit 1))))))
-                  (delete-file merged-input-file)
+                  (if delete-merged
+                      (delete-file merged-input-file))
                   (if (not (zero? process-result))
                       (err "ssrun#compile-to-c: error compiling generated C file in child process")))))))
         ((gambit)
@@ -189,7 +191,7 @@
                                cc-options
                                ld-options
                                verbose
-                               (delete-c #t)
+                               (delete-intermediate #t)
                                force)
   (let ((c-file (or c-output-file (%library-c-path lib)))
         (compile? (or force (%library-updated? lib))))
@@ -199,13 +201,14 @@
                               compiler-options: compiler-options
                               expander: expander
                               output: c-output-file
+                              delete-merged: delete-intermediate
                               verbose: verbose)
           (ssrun#compile-c-to-o c-file
                                 output: o-output-file
                                 environment-options: environment-options
                                 cc-options: cc-options
                                 ld-options: ld-options
-                                delete-c: delete-c
+                                delete-c: delete-intermediate
                                 verbose: verbose))))
 
 ;;! Compile to exe
